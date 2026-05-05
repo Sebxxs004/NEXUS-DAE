@@ -183,6 +183,69 @@ function normalizeActors(rawValue) {
   return [];
 }
 
+function parseQuotedCommaValues(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof rawValue !== 'string') {
+    return [];
+  }
+
+  const input = rawValue.trim();
+  if (!input) {
+    return [];
+  }
+
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (char === '"') {
+      if (inQuotes && input[i + 1] === '"') {
+        current += '"';
+        i += 1;
+        continue;
+      }
+
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+
+  return values
+    .map((item) => item.replace(/^"+|"+$/g, '').trim())
+    .filter(Boolean);
+}
+
+function parseCommaSeparatedValues(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof rawValue !== 'string') {
+    return [];
+  }
+
+  return rawValue
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function formatCaseDate(dateValue) {
   if (!dateValue) {
     return 'Sin fecha';
@@ -199,28 +262,38 @@ function formatCaseDate(dateValue) {
 function buildCaseMetadata(caseItem, index) {
   const fallback = CASE_METADATA_FALLBACKS[index % CASE_METADATA_FALLBACKS.length];
 
-  const offenseType =
+  const offenseTypeRaw =
     firstDefinedValue(caseItem.tipo_delito, caseItem.delito, caseItem.tipo, caseItem.categoria_delito) ||
     fallback.offenseType;
   const caseDate =
     firstDefinedValue(caseItem.fecha_hecho, caseItem.fecha, caseItem.fecha_caso, caseItem.created_at) || null;
-  const victim = firstDefinedValue(caseItem.victima, caseItem.victimas, caseItem.perfil_victima) || 'Sin registrar';
-  const offender =
-    firstDefinedValue(caseItem.victimario, caseItem.victimarios, caseItem.indiciado, caseItem.imputado) ||
-    'Sin registrar';
+  const victimRaw = firstDefinedValue(caseItem.victima, caseItem.victimas, caseItem.perfil_victima) || 'Sin registrar';
+  const offenderRaw =
+    firstDefinedValue(caseItem.victimario, caseItem.victimarios, caseItem.indiciado, caseItem.imputado) || 'Sin registrar';
   const zone =
     firstDefinedValue(caseItem.zona_territorial, caseItem.territorio, caseItem.zona, caseItem.municipio) ||
     fallback.zone;
+
+  const offenseTypes = parseQuotedCommaValues(offenseTypeRaw);
+  const victims = parseCommaSeparatedValues(victimRaw);
+  const offenders = parseCommaSeparatedValues(offenderRaw);
+
+  const offenseType = offenseTypes.length > 0 ? offenseTypes.join(', ') : String(offenseTypeRaw);
+  const victim = victims.length > 0 ? victims.join(', ') : String(victimRaw);
+  const offender = offenders.length > 0 ? offenders.join(', ') : String(offenderRaw);
 
   const actors = normalizeActors(firstDefinedValue(caseItem.actores_involucrados, caseItem.actores, caseItem.equipo));
   const finalActors = actors.length > 0 ? actors : fallback.actors;
 
   return {
     offenseType: String(offenseType),
+    offenseTypes,
     caseDate,
     caseDateLabel: formatCaseDate(caseDate),
     victim: String(victim),
+    victims,
     offender: String(offender),
+    offenders,
     zone: String(zone),
     actors: finalActors,
     offenseTag: String(offenseType).slice(0, 1).toUpperCase() || 'C',
@@ -296,14 +369,6 @@ function buildCompactGraphLayout(nodes, width = 320, height = 150) {
   };
 }
 
-const PLAN_ACCION_OPTIONS = [
-  'Formular imputación',
-  'Acumular procesos',
-  'Solicitar medidas asegurativas',
-  'Precluir o Archivar',
-  'Compulsa de copias'
-];
-
 function DashboardInvestigator({ token }) {
   const boardRef = useRef(null);
   const groupedRegionsRef = useRef([]);
@@ -325,18 +390,6 @@ function DashboardInvestigator({ token }) {
 
   const [startTimestamp, setStartTimestamp] = useState(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  const [connectionJustifications, setConnectionJustifications] = useState({});
-  const [pendingConnections, setPendingConnections] = useState([]);
-  const [justificationText, setJustificationText] = useState('');
-  const [activeTab, setActiveTab] = useState('tablero');
-  const [planAccion, setPlanAccion] = useState({});
-  const [caseGuesses, setCaseGuesses] = useState({});
-  const [groupGuesses, setGroupGuesses] = useState({});
-  const [tiempoLimiteMinutos, setTiempoLimiteMinutos] = useState(10);
-  const [autorIntelectualGuess, setAutorIntelectualGuess] = useState('');
-  const [zonaOperacionGuess, setZonaOperacionGuess] = useState('');
-  const [objetivosFeedback, setObjetivosFeedback] = useState(null);
 
   const [groupMeta, setGroupMeta] = useState({});
   const [finishing, setFinishing] = useState(false);
@@ -389,7 +442,7 @@ function DashboardInvestigator({ token }) {
       } catch (requestError) {
         console.error('Error loading cases for investigator:', requestError);
         if (!cancelled) {
-          setError('No fue posible cargar las carpetas para el fiscal.');
+          setError('No fue posible cargar las carpetas para el investigador.');
         }
       } finally {
         if (!cancelled) {
@@ -398,41 +451,7 @@ function DashboardInvestigator({ token }) {
       }
     };
 
-    const loadConfig = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/configuracion`, { headers: authHeaders });
-        if (!cancelled && response.data) {
-          setTiempoLimiteMinutos(response.data.tiempo_limite_minutos || 60);
-        }
-      } catch (err) {
-        console.error('Error cargando configuracion:', err);
-      }
-    };
-
-    const loadDraft = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/investigacion-feedback/me/draft`, { headers: authHeaders });
-        if (!cancelled && response.data && response.data.draft) {
-          const draft = response.data.draft;
-          if (draft.connections) setConnections(draft.connections);
-          if (draft.finalizedGroups) setFinalizedGroups(draft.finalizedGroups);
-          if (draft.startTimestamp) setStartTimestamp(draft.startTimestamp);
-          if (draft.elapsedSeconds) setElapsedSeconds(draft.elapsedSeconds);
-          if (draft.autorIntelectualGuess) setAutorIntelectualGuess(draft.autorIntelectualGuess);
-          if (draft.zonaOperacionGuess) setZonaOperacionGuess(draft.zonaOperacionGuess);
-          if (draft.connectionJustifications) setConnectionJustifications(draft.connectionJustifications);
-          if (draft.caseGuesses) setCaseGuesses(draft.caseGuesses);
-          if (draft.groupGuesses) setGroupGuesses(draft.groupGuesses);
-          if (draft.planAccion) setPlanAccion(draft.planAccion);
-        }
-      } catch (err) {
-        console.error('Error cargando borrador:', err);
-      }
-    };
-
     loadCases();
-    loadConfig();
-    loadDraft();
 
     return () => {
       cancelled = true;
@@ -485,56 +504,12 @@ function DashboardInvestigator({ token }) {
     return ids;
   }, [finalizedGroups]);
 
-  useEffect(() => {
-    if (investigationFinished || validationResult || feedbackSubmitted) return;
+  const activeNodes = useMemo(() => nodes.filter((node) => !finalizedNodeIds.has(String(node.id))), [nodes, finalizedNodeIds]);
 
-    const timer = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startTimestamp) / 1000));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [startTimestamp, investigationFinished, validationResult, feedbackSubmitted]);
-
-  // Auto-save borrador cada 5 segundos si hubo cambios
-  useEffect(() => {
-    if (investigationFinished || validationResult || feedbackSubmitted || loadingCases) return;
-
-    const saveDraft = async () => {
-      try {
-        const draftData = {
-          connections,
-          finalizedGroups,
-          startTimestamp,
-          elapsedSeconds,
-          autorIntelectualGuess,
-          zonaOperacionGuess,
-          connectionJustifications,
-          caseGuesses,
-          groupGuesses,
-          planAccion
-        };
-        await axios.put(`${API_URL}/investigacion-feedback/me/draft`, { estado_json: draftData }, { headers: authHeaders });
-      } catch (err) {
-        console.error('Error guardando borrador:', err);
-      }
-    };
-
-    const handler = setTimeout(saveDraft, 5000);
-    return () => clearTimeout(handler);
-  }, [connections, finalizedGroups, startTimestamp, elapsedSeconds, autorIntelectualGuess, zonaOperacionGuess, connectionJustifications, caseGuesses, groupGuesses, planAccion, investigationFinished, validationResult, feedbackSubmitted, loadingCases, authHeaders]);
-
-  useEffect(() => {
-    if (!investigationFinished && !validationResult && !finishing) {
-      const remaining = tiempoLimiteMinutos * 60 - elapsedSeconds;
-      if (remaining <= 0) {
-        finishInvestigation();
-      }
-    }
-  }, [elapsedSeconds, tiempoLimiteMinutos, investigationFinished, validationResult, finishing]);
-
-  const activeNodes = useMemo(() => nodes, [nodes]);
-
-  const activeConnections = useMemo(() => connections, [connections]);
+  const activeConnections = useMemo(
+    () => connections.filter((edge) => !finalizedNodeIds.has(String(edge.a)) && !finalizedNodeIds.has(String(edge.b))),
+    [connections, finalizedNodeIds]
+  );
 
   const activeNodeById = useMemo(() => {
     const map = new Map();
@@ -837,38 +812,17 @@ function DashboardInvestigator({ token }) {
     return map;
   }, [carpetas]);
 
-  const buildJustificacionesPayload = (result, reasonsMap) => {
-    const combined = [];
-    
-    // Añadir justificaciones de las conexiones hechas durante la investigacion
-    Object.entries(connectionJustifications).forEach(([pairKey, reason]) => {
-      combined.push({
-        pairKey,
-        pairLabel: formatPairLabel(pairKey, caseNameById),
-        reason: String(reason).trim(),
-      });
-    });
-
-    // Añadir/Actualizar justificaciones de desacuerdo post-feedback
-    const incorrectPairs = result?.incorrect || [];
-    incorrectPairs.forEach((pairKey) => {
-      const reason = String(reasonsMap[pairKey] || '').trim();
-      if (reason.length > 0) {
-        // Verificar si ya existe para reemplazar o agregar
-        const existing = combined.find(j => j.pairKey === pairKey);
-        if (existing) {
-          existing.reason = reason;
-        } else {
-          combined.push({
-            pairKey,
-            pairLabel: formatPairLabel(pairKey, caseNameById),
-            reason,
-          });
-        }
-      }
-    });
-
-    return combined.filter((item) => item.reason.length > 0);
+  const buildJustificacionesPayload = () => {
+    return connections
+      .map((edge) => {
+        const pairKey = getPairKey(edge.a, edge.b);
+        return {
+          pairKey,
+          pairLabel: formatPairLabel(pairKey, caseNameById),
+          reason: String(connectionJustifications[pairKey] || '').trim(),
+        };
+      })
+      .filter((item) => item.reason.length > 0);
   };
 
   const hydrateFeedback = (feedback) => {
@@ -884,14 +838,6 @@ function DashboardInvestigator({ token }) {
       incorrect: feedback.incorrect || [],
       missing: feedback.missing || [],
     });
-
-    if (feedback.planAccion && Array.isArray(feedback.planAccion)) {
-      const planMap = {};
-      feedback.planAccion.forEach(p => {
-        planMap[p.opcion] = p.justificacion;
-      });
-      setPlanAccion(planMap);
-    }
 
     const reasonsMap = {};
     (feedback.justificaciones || []).forEach((item) => {
@@ -1018,7 +964,7 @@ function DashboardInvestigator({ token }) {
       return;
     }
 
-    if (selectedNodeIds.length >= 2) {
+    if (selectedNodeIds.length >= 3) {
       setSelectedNodeIds([nodeId]);
       return;
     }
@@ -1026,14 +972,22 @@ function DashboardInvestigator({ token }) {
     const nextSelection = [...selectedNodeIds, nodeId];
     setSelectedNodeIds(nextSelection);
 
-    if (nextSelection.length === 2) {
-      const edge = { a: nextSelection[0], b: nextSelection[1] };
-      const key = getPairKey(edge.a, edge.b);
-      const exists = connections.some((currentEdge) => getPairKey(currentEdge.a, currentEdge.b) === key);
+    if (nextSelection.length >= 2) {
+      const candidateEdges =
+        nextSelection.length === 2
+          ? [{ a: nextSelection[0], b: nextSelection[1] }]
+          : connectPairSet(nextSelection);
 
-      if (!exists) {
-        setPendingConnections([edge]);
-      } else {
+      const newEdges = candidateEdges.filter((edge) => {
+        const key = getPairKey(edge.a, edge.b);
+        return !connections.some((currentEdge) => getPairKey(currentEdge.a, currentEdge.b) === key);
+      });
+
+      if (newEdges.length > 0) {
+        setConnections((current) => [...current, ...newEdges]);
+      }
+
+      if (nextSelection.length === 3) {
         setSelectedNodeIds([]);
       }
     }
@@ -1048,14 +1002,6 @@ function DashboardInvestigator({ token }) {
 
     setConnections((current) => {
       const nextConnections = current.filter((edge) => getPairKey(edge.a, edge.b) !== edgeKey);
-      
-      // Eliminar justificacion de la conexion borrada
-      setConnectionJustifications(prev => {
-        const newJ = { ...prev };
-        delete newJ[edgeKey];
-        return newJ;
-      });
-      
       const nextComponents = buildComponents(activeNodeIds, nextConnections);
       const affectedComponents = nextComponents.filter((component) => component.includes(nodeAId) || component.includes(nodeBId));
 
@@ -1208,11 +1154,7 @@ function DashboardInvestigator({ token }) {
           correct: result.correct,
           incorrect: result.incorrect,
           missing: result.missing,
-          justificaciones: buildJustificacionesPayload(result, disagreementReasons),
-          caseGuesses: result.caseGuesses,
-          groupGuesses: result.groupGuesses,
-          groupJustifications: result.groupJustifications,
-          planAccion: result.planAccion,
+          justificaciones: buildJustificacionesPayload(),
         },
         { headers: authHeaders }
       );
@@ -1235,30 +1177,6 @@ function DashboardInvestigator({ token }) {
     }
   };
 
-  const saveJustifications = async () => {
-    if (!validationResult || !feedbackSubmitted) {
-      return;
-    }
-
-    setSavingJustifications(true);
-    try {
-      const response = await axios.put(
-        `${API_URL}/investigacion-feedback/me/justificaciones`,
-        {
-          justificaciones: buildJustificacionesPayload(validationResult, disagreementReasons),
-        },
-        { headers: authHeaders }
-      );
-
-      hydrateFeedback(response.data.feedback);
-      setError('');
-    } catch (requestError) {
-      console.error('Error guardando justificaciones:', requestError);
-      setError('No fue posible guardar las justificaciones del feedback.');
-    } finally {
-      setSavingJustifications(false);
-    }
-  };
 
   const downloadFeedbackPdf = () => {
     if (!validationResult) {
@@ -1286,45 +1204,27 @@ function DashboardInvestigator({ token }) {
     writeLine('Feedback Fiscal - PRISMA DAE', 15, [0, 90, 140]);
     writeLine(`Fiscal: ${usuario?.nombre || 'Sin nombre'}`);
     writeLine(`Fecha: ${new Date().toLocaleString()}`);
-    writeLine(`Puntaje: ${validationResult.score}%`);
-    writeLine(`Esperadas: ${validationResult.expectedTotal} | Trazadas: ${validationResult.userTotal}`);
-    writeLine(
-      `Formula de puntaje: ${validationResult.correct.length} / ${Math.max(1, validationResult.expectedTotal)}`
-    );
+    writeLine(`Total de Conexiones Trazadas: ${connections.length}`);
 
     y += 3;
-    writeLine('Conexiones incorrectas:', 12, [120, 30, 30]);
-    if (validationResult.incorrect.length === 0) {
+    writeLine('Conexiones Trazadas:', 12, [60, 60, 60]);
+    if (connections.length === 0) {
       writeLine('Ninguna.');
     } else {
-      validationResult.incorrect.forEach((pairKey) => {
-        writeLine(`- ${formatPairLabel(pairKey, caseNameById)}`);
+      connections.forEach((edge) => {
+        const pairKey = getPairKey(edge.a, edge.b);
+        const pairLabel = formatPairLabel(pairKey, caseNameById);
+        const reason = connectionJustifications[pairKey] || '';
+        if (reason.trim() !== '') {
+          writeLine(`- [Conexado] ${pairLabel}`, 11, [0, 100, 0]);
+          writeLine(`  Motivo: ${reason}`);
+        } else {
+          writeLine(`- [Asociado] ${pairLabel}`, 11, [100, 100, 100]);
+        }
       });
     }
 
-    y += 3;
-    writeLine('Conexiones faltantes:', 12, [140, 90, 0]);
-    if (validationResult.missing.length === 0) {
-      writeLine('Ninguna.');
-    } else {
-      validationResult.missing.forEach((pairKey) => {
-        writeLine(`- ${formatPairLabel(pairKey, caseNameById)}`);
-      });
-    }
-
-    y += 3;
-    writeLine('Justificaciones de desacuerdo (no vacias):', 12, [60, 60, 60]);
-    const justificaciones = buildJustificacionesPayload(validationResult, disagreementReasons);
-    if (justificaciones.length === 0) {
-      writeLine('Sin justificaciones registradas.');
-    } else {
-      justificaciones.forEach((item) => {
-        writeLine(`- Conexion: ${item.pairLabel}`);
-        writeLine(`  Motivo: ${item.reason}`);
-      });
-    }
-
-    const safeName = (usuario?.nombre || 'fiscal').replace(/\s+/g, '-').toLowerCase();
+    const safeName = (usuario?.nombre || 'investigador').replace(/\s+/g, '-').toLowerCase();
     doc.save(`feedback-${safeName}.pdf`);
   };
 
@@ -1343,122 +1243,28 @@ function DashboardInvestigator({ token }) {
     setFinishing(true);
 
     try {
-      const groupsResponse = await axios.get(`${API_URL}/grupos-asociacion`, {
-        headers: authHeaders,
-      });
-      const groups = groupsResponse.data || [];
-
-      const groupDetails = await Promise.all(
-        groups.map((group) =>
-          axios
-            .get(`${API_URL}/grupos-asociacion/${group.id}`, { headers: authHeaders })
-            .then((response) => response.data)
-            .catch(() => null)
-        )
-      );
-
-      const expectedPairs = new Map();
-      groupDetails.forEach((detail) => {
-        if (!detail || !Array.isArray(detail.relaciones)) {
-          return;
-        }
-        detail.relaciones.forEach((relation) => {
-          const key = getPairKey(relation.carpeta_a_id, relation.carpeta_b_id);
-          expectedPairs.set(key, relation.relation_type || 'modalidad');
-        });
-      });
-
       const userPairs = new Set(connections.map((edge) => getPairKey(edge.a, edge.b)));
 
-      const correct = [];
-      const incorrect = [];
-      const missing = [];
-
-      userPairs.forEach((pairKey) => {
-        if (expectedPairs.has(pairKey)) {
-          correct.push(pairKey);
-        } else {
-          incorrect.push(pairKey);
-        }
-      });
-
-      expectedPairs.forEach((_type, pairKey) => {
-        if (!userPairs.has(pairKey)) {
-          missing.push(pairKey);
-        }
-      });
-
-      const totalEvaluatedPairs = Math.max(1, expectedPairs.size);
-      
-      let totalPuntosPosibles = expectedPairs.size;
-      let puntosObtenidos = correct.length;
-
-      let autorCorrectoCount = 0;
-      let zonaCorrectaCount = 0;
-
-      carpetas.forEach(c => {
-        if (c.es_autor_intelectual) {
-          totalPuntosPosibles++;
-          if (caseGuesses[c.id]?.autorIntelectual === 'si' || Object.values(groupGuesses).some(g => g.autorIntelectual === c.id)) {
-            puntosObtenidos++;
-            autorCorrectoCount++;
-          }
-        }
-        if (c.es_zona_operacion) {
-          totalPuntosPosibles++;
-          if (caseGuesses[c.id]?.zonaOperacion === 'si' || Object.values(groupGuesses).some(g => g.zonaOperacion === c.id)) {
-            puntosObtenidos++;
-            zonaCorrectaCount++;
-          }
-        }
-      });
-
-      const score = Math.round((puntosObtenidos / Math.max(1, totalPuntosPosibles)) * 100);
-
-      const objetivosData = {
-        autorCorrecto: autorCorrectoCount > 0,
-        zonaCorrecta: zonaCorrectaCount > 0,
-        puntajeExtra: 0
-      };
-      setObjetivosFeedback(objetivosData);
-
       setValidationResult({
-        expectedTotal: expectedPairs.size,
+        expectedTotal: 0,
         userTotal: userPairs.size,
-        score,
-        correct,
-        incorrect,
-        missing,
+        score: 0,
+        correct: [],
+        incorrect: [],
+        missing: [],
       });
       setElapsedSeconds(Math.floor((Date.now() - startTimestamp) / 1000));
       setInvestigationFinished(true);
       setSelectedNodeIds([]);
       setIsFeedbackModalOpen(true);
-      
-      try {
-        await axios.delete(`${API_URL}/investigacion-feedback/me/draft`, { headers: authHeaders });
-      } catch (err) {
-        console.error('Error eliminando borrador al finalizar:', err);
-      }
-
-      const groupJustifications = {};
-      Object.entries(groupMeta).forEach(([k, meta]) => {
-        if (meta.justificacionGeneral) {
-          groupJustifications[k] = meta.justificacionGeneral;
-        }
-      });
 
       await saveInitialFeedback({
-        expectedTotal: expectedPairs.size,
+        expectedTotal: 0,
         userTotal: userPairs.size,
-        score,
-        correct,
-        incorrect,
-        missing,
-        caseGuesses,
-        groupGuesses,
-        groupJustifications,
-        planAccion: Object.entries(planAccion).map(([opcion, justificacion]) => ({ opcion, justificacion })),
+        score: 0,
+        correct: [],
+        incorrect: [],
+        missing: [],
       });
     } catch (requestError) {
       console.error('Error finishing investigation:', requestError);
@@ -1468,31 +1274,19 @@ function DashboardInvestigator({ token }) {
     }
   };
 
-  const restartInvestigation = async () => {
-
-    try {
-      await axios.delete(`${API_URL}/investigacion-feedback/me/draft`, { headers: authHeaders });
-    } catch (err) {
-      console.error('Error eliminando borrador al reiniciar:', err);
+  const restartInvestigation = () => {
+    if (validationResult || feedbackSubmitted) {
+      setError('La prueba ya fue presentada. No se puede reiniciar.');
+      return;
     }
 
     setConnections([]);
     setSelectedNodeIds([]);
-    setFinalizedGroups({});
     setValidationResult(null);
-    setObjetivosFeedback(null);
     setDisagreementReasons({});
     setInvestigationFinished(false);
     setStartTimestamp(Date.now());
     setElapsedSeconds(0);
-    setAutorIntelectualGuess('');
-    setZonaOperacionGuess('');
-    setCaseGuesses({});
-    setGroupGuesses({});
-    setConnectionJustifications({});
-    setGroupMeta({});
-    setPlanAccion({});
-    setFeedbackSubmitted(false);
   };
 
   const updateDisagreement = (pairKey, text) => {
@@ -1500,48 +1294,83 @@ function DashboardInvestigator({ token }) {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-investigation-bg text-slate-100">
-      <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-600/30 bg-slate-950/80 px-6 py-3">
-        <div className="flex items-center gap-8">
-          <h1 className="font-mono text-lg tracking-[0.18em] text-cyan-200">MODO FISCAL</h1>
-          <nav className="flex gap-2">
+    <div className="h-screen bg-investigation-bg text-slate-100">
+      <div className="flex h-full">
+        <aside className="w-[360px] border-r border-slate-600/30 bg-slate-950/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="font-mono text-lg tracking-[0.18em] text-cyan-200">MODO INVESTIGADOR</h1>
+              <p className="mt-1 text-xs text-slate-400">{usuario?.nombre ? `Sesion: ${usuario.nombre}` : 'Sesion activa'}</p>
+            </div>
             <button
               type="button"
-              onClick={() => setActiveTab('tablero')}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeTab === 'tablero' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:bg-slate-800'}`}
+              onClick={logout}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
             >
-              Tablero Analítico
+              Cerrar sesion
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('casos')}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeTab === 'casos' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:bg-slate-800'}`}
-            >
-              Gestión de Casos
-            </button>
-          </nav>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 rounded-lg border border-cyan-500/20 bg-slate-900/50 px-3 py-1.5">
-            <FiClock size={16} className="text-cyan-400" />
-            <p className={`font-mono text-base font-semibold ${(tiempoLimiteMinutos * 60 - elapsedSeconds) < 60 ? 'text-orange-400 animate-pulse' : 'text-slate-200'}`}>
-              {formatSeconds(Math.max(0, tiempoLimiteMinutos * 60 - elapsedSeconds))}
-            </p>
           </div>
-          <p className="text-xs text-slate-400">{usuario?.nombre ? `Sesión: ${usuario.nombre}` : 'Sesión activa'}</p>
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
-          >
-            Cerrar sesión
-          </button>
-        </div>
-      </header>
+          <p className="mt-2 text-xs text-slate-400">Explora carpetas, revisa documentos y construye el grafo investigativo.</p>
 
-      <div className="flex flex-1 overflow-hidden">
-        {activeTab === 'tablero' ? (
+          <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/10 p-3">
+            <div className="flex items-center gap-2 text-sm text-cyan-200">
+              <FiClock size={15} />
+              Tiempo investigando
+            </div>
+            <p className="mt-1 font-mono text-xl text-slate-100">{formatSeconds(elapsedSeconds)}</p>
+          </div>
 
+          <div className="mt-4 rounded-lg border border-slate-500/20 bg-slate-900/60 p-3">
+            <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-400">Carpetas</p>
+            <div className="max-h-[26vh] space-y-2 overflow-y-auto pr-1">
+              {loadingCases ? (
+                <p className="text-sm text-slate-400">Cargando carpetas...</p>
+              ) : (
+                carpetas.map((caseItem) => (
+                  (() => {
+                    const metadata = caseMetadataById.get(caseItem.id);
+                    return (
+                  <button
+                    key={caseItem.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCaseId(caseItem.id);
+                      setSelectedDocument(null);
+                    }}
+                    className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                      selectedCaseId === caseItem.id
+                        ? 'border-cyan-400/60 bg-cyan-500/10'
+                        : 'border-slate-500/20 bg-slate-950/50 hover:border-cyan-400/30'
+                    }`}
+                  >
+                    <p className="flex items-center gap-2 font-mono text-sm text-slate-100">
+                      <FiFolder size={14} />
+                      {caseItem.nombre}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">{caseItem.cantidad_documentos || 0} documentos</p>
+                    <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-300">
+                      <p className="flex items-center gap-1 truncate">
+                        <FiAlertTriangle size={10} className="text-amber-300" />
+                        {metadata?.offenseType || 'Sin delito'}
+                      </p>
+                      <p className="flex items-center gap-1 truncate">
+                        <FiCalendar size={10} className="text-cyan-300" />
+                        {metadata?.caseDateLabel || 'Sin fecha'}
+                      </p>
+                      <p className="col-span-2 flex items-center gap-1 truncate">
+                        <FiMapPin size={10} className="text-emerald-300" />
+                        {metadata?.zone || 'Sin zona'}
+                      </p>
+                    </div>
+                  </button>
+                    );
+                  })()
+                ))
+              )}
+            </div>
+          </div>
+
+        </aside>
 
         <main className="flex-1 p-4">
           <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto]">
@@ -1555,9 +1384,8 @@ function DashboardInvestigator({ token }) {
               <button
                 type="button"
                 onClick={finishInvestigation}
-                disabled={finishing || investigationFinished || feedbackChecking || feedbackSubmitted || Boolean(validationResult) || Object.values(planAccion).some(j => j.trim() === '')}
-                title={Object.values(planAccion).some(j => j.trim() === '') ? 'Debes justificar todas las opciones del plan de acción que seleccionaste' : ''}
-                className="flex items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={finishing || investigationFinished || feedbackChecking || feedbackSubmitted || Boolean(validationResult)}
+                className="flex items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60"
               >
                 <FiTarget size={15} />
                 {finishing ? 'Validando...' : 'Terminar investigacion'}
@@ -1565,6 +1393,7 @@ function DashboardInvestigator({ token }) {
               <button
                 type="button"
                 onClick={restartInvestigation}
+                disabled={feedbackSubmitted || Boolean(validationResult)}
                 className="flex items-center gap-2 rounded-lg border border-slate-500/30 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"
               >
                 <FiPlay size={14} />
@@ -1624,6 +1453,7 @@ function DashboardInvestigator({ token }) {
                     return null;
                   }
                   const pairKey = getPairKey(edge.a, edge.b);
+                  const isConexado = !!connectionJustifications[pairKey] && connectionJustifications[pairKey].trim() !== '';
                   return (
                     <line
                       key={pairKey}
@@ -1631,9 +1461,10 @@ function DashboardInvestigator({ token }) {
                       y1={source.y}
                       x2={target.x}
                       y2={target.y}
-                      stroke="#38bdf8"
-                      strokeWidth="2"
-                      opacity="0.75"
+                      stroke={isConexado ? "#fbbf24" : "#94a3b8"}
+                      strokeWidth={isConexado ? "3" : "2"}
+                      opacity={isConexado ? "0.9" : "0.5"}
+                      strokeDasharray={isConexado ? "none" : "5, 5"}
                     />
                   );
                 })}
@@ -1700,21 +1531,33 @@ function DashboardInvestigator({ token }) {
                   ) : (
                     activeConnections.map((edge) => {
                       const key = getPairKey(edge.a, edge.b);
+                      const isConexado = !!connectionJustifications[key] && connectionJustifications[key].trim() !== '';
                       const source = carpetas.find((caseItem) => caseItem.id === edge.a);
                       const target = carpetas.find((caseItem) => caseItem.id === edge.b);
                       return (
-                        <div key={key} className="flex items-center justify-between rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs">
-                          <span className="text-slate-200">
+                        <div key={key} className="flex items-center justify-between gap-2 rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs">
+                          <span className={`text-slate-200 ${isConexado ? 'text-amber-200 font-semibold' : ''}`}>
                             {source?.nombre || edge.a} - {target?.nombre || edge.b}
                           </span>
                           {!investigationFinished && (
-                            <button
-                              type="button"
-                              onClick={() => removeConnection(key)}
-                              className="text-red-300 hover:text-red-200"
-                            >
-                              quitar
-                            </button>
+                            <div className="flex gap-2">
+                              {!isConexado && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingConnections([edge])}
+                                  className="text-amber-300 hover:text-amber-200"
+                                >
+                                  conexar
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeConnection(key)}
+                                className="text-red-300 hover:text-red-200"
+                              >
+                                quitar
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -1765,44 +1608,12 @@ function DashboardInvestigator({ token }) {
                               <option value="modalidad">Asociado por modalidad</option>
                               <option value="patrones">Asociado por patron</option>
                             </select>
-
-                            <select
-                              disabled={investigationFinished}
-                              value={groupGuesses[group.key]?.autorIntelectual || ''}
-                              onChange={(e) => setGroupGuesses(prev => ({ ...prev, [group.key]: { ...prev[group.key], autorIntelectual: e.target.value } }))}
-                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                            >
-                              <option value="">¿Autor Intelectual General?</option>
-                              {carpetas.map(c => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              disabled={investigationFinished}
-                              value={groupGuesses[group.key]?.zonaOperacion || ''}
-                              onChange={(e) => setGroupGuesses(prev => ({ ...prev, [group.key]: { ...prev[group.key], zonaOperacion: e.target.value } }))}
-                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                            >
-                              <option value="">¿Zona de Operación General?</option>
-                              {carpetas.map(c => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
-                              ))}
-                            </select>
-                            
-                            <textarea
-                              disabled={investigationFinished}
-                              value={groupMeta[group.key]?.justificacionGeneral || ''}
-                              onChange={(e) => updateGroupMeta(group.key, { justificacionGeneral: e.target.value })}
-                              placeholder="Justificación general del grupo..."
-                              className="mt-1 h-14 w-full resize-none rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                            />
                           </div>
                         </div>
                           <button
                             type="button"
                             onClick={() => finalizeGroup(group)}
-                            disabled={investigationFinished || Boolean(finalizedGroups[group.key]) || !(groupMeta[group.key]?.justificacionGeneral?.trim())}
+                            disabled={investigationFinished || Boolean(finalizedGroups[group.key])}
                             className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <FiSave size={13} />
@@ -1898,48 +1709,6 @@ function DashboardInvestigator({ token }) {
                 </div>
               </div>
 
-              {/* Plan de Acción Global */}
-              <div className="border-t border-slate-600/30 pt-4 mt-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">Plan de Acción Global</p>
-                <div className="space-y-3">
-                  {PLAN_ACCION_OPTIONS.map((opcion) => {
-                    const isChecked = planAccion.hasOwnProperty(opcion);
-                    return (
-                      <div key={opcion} className={`rounded border p-2 transition-colors ${isChecked ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-slate-600/30 bg-slate-900/50 hover:border-slate-500/50'}`}>
-                        <label className="flex cursor-pointer items-start gap-2">
-                          <input
-                            type="checkbox"
-                            className="mt-0.5 flex-shrink-0 cursor-pointer accent-cyan-500"
-                            checked={isChecked}
-                            disabled={investigationFinished}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setPlanAccion((prev) => ({ ...prev, [opcion]: '' }));
-                              } else {
-                                setPlanAccion((prev) => {
-                                  const next = { ...prev };
-                                  delete next[opcion];
-                                  return next;
-                                });
-                              }
-                            }}
-                          />
-                          <span className={`text-xs ${isChecked ? 'font-medium text-cyan-100' : 'text-slate-300'}`}>{opcion}</span>
-                        </label>
-                        {isChecked && (
-                          <textarea
-                            disabled={investigationFinished}
-                            value={planAccion[opcion] || ''}
-                            onChange={(e) => setPlanAccion((prev) => ({ ...prev, [opcion]: e.target.value }))}
-                            placeholder={`Justifica por qué aplicas: ${opcion}...`}
-                            className="mt-2 h-14 w-full resize-none rounded border border-cyan-500/20 bg-slate-950/80 p-2 text-xs text-slate-200 outline-none focus:border-cyan-500/50"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
               {validationResult && (
                 <div className="space-y-2 border-t border-slate-600/30 pt-2">
                   <div className="rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -1957,128 +1726,7 @@ function DashboardInvestigator({ token }) {
             </div>
           </div>
         </main>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-950/40">
-            <div className="mx-auto max-w-6xl">
-              <h2 className="mb-6 text-2xl font-bold text-cyan-400">Gestión General de Casos</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {carpetas.map((caseItem) => {
-                  const meta = caseMetadataById.get(caseItem.id);
-                  const isIntellectual = caseGuesses[caseItem.id]?.autorIntelectual || '';
-                  const opZone = caseGuesses[caseItem.id]?.zonaOperacion || '';
-                  return (
-                    <div key={caseItem.id} className="rounded-xl border border-slate-600/30 bg-slate-900/80 p-5 shadow-lg">
-                      <div className="flex items-start justify-between">
-                        <h3 className="text-lg font-semibold text-cyan-200">{caseItem.nombre}</h3>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCaseId(caseItem.id);
-                            setIsCaseSummaryOpen(true);
-                          }}
-                          className="text-xs text-cyan-400 underline hover:text-cyan-300"
-                        >
-                          Ver Detalles
-                        </button>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-400">{meta?.offenseType || 'Sin delito'}</p>
-                      <p className="text-xs text-slate-400">{meta?.caseDateLabel || 'Sin fecha'} - {meta?.zone || 'Sin zona'}</p>
-
-                      <div className="mt-5 space-y-4 border-t border-slate-700/50 pt-4">
-                        <div>
-                          <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">¿Es el Autor Intelectual?</label>
-                          <select
-                            disabled={investigationFinished}
-                            value={isIntellectual}
-                            onChange={(e) => setCaseGuesses(prev => ({ ...prev, [caseItem.id]: { ...prev[caseItem.id], autorIntelectual: e.target.value } }))}
-                            className="mt-1 w-full rounded border border-slate-600/50 bg-slate-800 px-3 py-2 text-sm text-slate-200 outline-none transition focus:border-cyan-500"
-                          >
-                            <option value="">No definido</option>
-                            <option value="si">Sí, es autor intelectual</option>
-                            <option value="no">No lo es</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">¿Es la Zona de Operación Principal?</label>
-                          <select
-                            disabled={investigationFinished}
-                            value={opZone}
-                            onChange={(e) => setCaseGuesses(prev => ({ ...prev, [caseItem.id]: { ...prev[caseItem.id], zonaOperacion: e.target.value } }))}
-                            className="mt-1 w-full rounded border border-slate-600/50 bg-slate-800 px-3 py-2 text-sm text-slate-200 outline-none transition focus:border-cyan-500"
-                          >
-                            <option value="">No definido</option>
-                            <option value="si">Sí, es la zona de operación</option>
-                            <option value="no">No lo es</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-
-      {pendingConnections.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-5 shadow-[0_0_45px_rgba(8,145,178,0.28)]">
-            <h2 className="mb-2 text-xl font-bold text-cyan-400">Justificar Conexión(es)</h2>
-            <p className="mb-4 text-xs text-slate-300">
-              Has trazado {pendingConnections.length} conexión(es) entre los casos:
-            </p>
-            <ul className="mb-4 max-h-32 overflow-y-auto pl-4 text-xs text-cyan-200">
-              {pendingConnections.map((edge) => (
-                <li key={getPairKey(edge.a, edge.b)} className="mb-1 list-disc">
-                  <span className="font-semibold">{caseNameById.get(edge.a)}</span> - <span className="font-semibold">{caseNameById.get(edge.b)}</span>
-                </li>
-              ))}
-            </ul>
-            <textarea
-              value={justificationText}
-              onChange={(e) => setJustificationText(e.target.value)}
-              className="h-24 w-full resize-none rounded-lg border border-slate-500/30 bg-slate-800 p-3 text-sm text-slate-200 outline-none focus:border-cyan-400"
-              placeholder="Escribe por qué crees que estos casos están conectados..."
-            />
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingConnections([]);
-                  setJustificationText('');
-                  setSelectedNodeIds([]);
-                }}
-                className="rounded-lg border border-slate-500/30 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={justificationText.trim().length === 0}
-                onClick={() => {
-                  setConnections((current) => [...current, ...pendingConnections]);
-                  setConnectionJustifications(prev => {
-                    const next = { ...prev };
-                    pendingConnections.forEach(edge => {
-                      const key = getPairKey(edge.a, edge.b);
-                      next[key] = justificationText.trim();
-                    });
-                    return next;
-                  });
-                  setPendingConnections([]);
-                  setJustificationText('');
-                  setSelectedNodeIds([]);
-                }}
-                className="rounded-lg border border-cyan-400/50 bg-cyan-500/20 px-4 py-2 text-sm font-bold text-cyan-200 transition hover:bg-cyan-500/30 disabled:opacity-50"
-              >
-                Conectar Casos
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isFeedbackModalOpen && validationResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
@@ -2086,7 +1734,7 @@ function DashboardInvestigator({ token }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Feedback Final</p>
-                <p className="mt-1 font-mono text-lg text-slate-100">{usuario?.nombre || 'Fiscal'}</p>
+                <p className="mt-1 font-mono text-lg text-slate-100">{usuario?.nombre || 'Investigador'}</p>
               </div>
               <button
                 type="button"
@@ -2098,100 +1746,36 @@ function DashboardInvestigator({ token }) {
             </div>
 
             <div className="mt-4 space-y-2">
-              <div className="rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                Puntaje: {validationResult.score}%
-              </div>
-              <div className="rounded border border-slate-500/20 bg-slate-900/70 px-3 py-2 text-sm text-slate-200">
-                Esperadas: {validationResult.expectedTotal} | Trazadas: {validationResult.userTotal}
-              </div>
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200">
-                Formula: correctas ({validationResult.correct.length}) / esperadas ({validationResult.expectedTotal})
+                Total de Conexiones Trazadas: {connections.length}
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                  <FiCheckCircle className="mr-1 inline" size={12} />
-                  Correctas: {validationResult.correct.length}
-                </div>
-                <div className="rounded border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  <FiXCircle className="mr-1 inline" size={12} />
-                  Incorrectas: {validationResult.incorrect.length}
-                </div>
-                <div className="rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-                  <FiLink className="mr-1 inline" size={12} />
-                  Faltantes: {validationResult.missing.length}
-                </div>
+              <div className="max-h-60 overflow-y-auto rounded border border-slate-500/20 bg-slate-900/70 p-3">
+                {connections.length === 0 ? (
+                  <p className="text-xs text-slate-400">No se crearon conexiones.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {connections.map((edge) => {
+                      const pairKey = getPairKey(edge.a, edge.b);
+                      const isConexado = !!connectionJustifications[pairKey] && connectionJustifications[pairKey].trim() !== '';
+                      return (
+                        <li key={pairKey} className="text-xs">
+                          <span className={isConexado ? "text-amber-300 font-semibold" : "text-slate-300"}>
+                            [{isConexado ? 'Conexado' : 'Asociado'}] {formatPairLabel(pairKey, caseNameById)}
+                          </span>
+                          {isConexado && (
+                            <p className="mt-1 text-slate-400 pl-2 border-l border-slate-500/30">
+                              {connectionJustifications[pairKey]}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             </div>
 
-            {objetivosFeedback && (
-              <div className="mt-4 rounded border border-orange-500/30 bg-orange-500/10 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-orange-200">Resultados Misiones Estratégicas</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className={`rounded px-3 py-2 text-xs ${objetivosFeedback.autorCorrecto ? 'bg-emerald-500/20 text-emerald-200' : 'bg-red-500/20 text-red-200'}`}>
-                    Autor Intelectual: {objetivosFeedback.autorCorrecto ? '¡Acertado!' : 'Fallido'}
-                  </div>
-                  <div className={`rounded px-3 py-2 text-xs ${objetivosFeedback.zonaCorrecta ? 'bg-emerald-500/20 text-emerald-200' : 'bg-red-500/20 text-red-200'}`}>
-                    Zona Operación: {objetivosFeedback.zonaCorrecta ? '¡Acertado!' : 'Fallida'}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {validationResult.missing.length > 0 && (
-              <div className="mt-4 space-y-1 rounded border border-amber-500/20 bg-amber-500/5 p-3">
-                <p className="text-sm text-amber-200">Conexiones esperadas que faltaron:</p>
-                {validationResult.missing.map((pairKey) => (
-                  <p key={pairKey} className="text-xs text-amber-100">
-                    {formatPairLabel(pairKey, caseNameById)}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            {validationResult.incorrect.length > 0 && (
-              <div className="mt-4 space-y-2 rounded border border-slate-500/20 bg-slate-900/70 p-3">
-                <p className="text-sm text-slate-300">
-                  Si no estas de acuerdo con una conexion marcada como incorrecta, registra tu justificacion:
-                </p>
-                {validationResult.incorrect.map((pairKey) => (
-                  <div key={pairKey}>
-                    <p className="text-xs text-slate-400">Conexion: {formatPairLabel(pairKey, caseNameById)}</p>
-                    <textarea
-                      rows="2"
-                      value={disagreementReasons[pairKey] || ''}
-                      onChange={(event) => updateDisagreement(pairKey, event.target.value)}
-                      className="mt-1 w-full rounded border border-slate-500/20 bg-slate-950/70 px-2 py-1 text-xs text-slate-200 outline-none"
-                      placeholder="Explica por que consideras valida esta conexion..."
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {Object.keys(planAccion).length > 0 && (
-              <div className="mt-4 rounded border border-cyan-500/30 bg-cyan-500/10 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-200">Plan de Acción del Despacho</p>
-                <div className="space-y-2">
-                  {Object.entries(planAccion).map(([opcion, justificacion]) => (
-                    <div key={opcion} className="rounded bg-slate-900/50 p-2">
-                      <p className="text-xs font-bold text-cyan-300">{opcion}</p>
-                      <p className="mt-1 text-xs text-slate-300 italic">"{justificacion}"</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={saveJustifications}
-                disabled={!feedbackSubmitted || savingJustifications}
-                className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60"
-              >
-                <FiSave size={14} />
-                {savingJustifications ? 'Guardando...' : 'Guardar justificaciones'}
-              </button>
               <button
                 type="button"
                 onClick={downloadFeedbackPdf}
@@ -2238,18 +1822,70 @@ function DashboardInvestigator({ token }) {
                 <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
                   <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Metadatos del caso</p>
                   <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-200">
-                    <p className="flex items-center gap-2">
+                    <div>
+                      <p className="flex items-center gap-2">
                       <FiAlertTriangle size={12} className="text-amber-300" />
-                      Tipo de delito: {selectedCaseMetadata?.offenseType || 'Sin registrar'}
-                    </p>
+                      Tipo de delito:
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 pl-5">
+                        {(selectedCaseMetadata?.offenseTypes || []).length > 0 ? (
+                          (selectedCaseMetadata?.offenseTypes || []).map((offense) => (
+                            <span
+                              key={`${selectedCase?.id}-offense-${offense}`}
+                              className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100"
+                            >
+                              {offense}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-300">Sin registrar</span>
+                        )}
+                      </div>
+                    </div>
                     <p className="flex items-center gap-2">
                       <FiCalendar size={12} className="text-cyan-300" />
                       Fecha del caso: {selectedCaseMetadata?.caseDateLabel || 'Sin fecha'}
                     </p>
-                    <p className="flex items-center gap-2">
-                      <FiUsers size={12} className="text-emerald-300" />
-                      Victima-victimario: {selectedCaseMetadata?.victim || 'Sin registrar'} / {selectedCaseMetadata?.offender || 'Sin registrar'}
-                    </p>
+                    <div>
+                      <p className="flex items-center gap-2">
+                        <FiUsers size={12} className="text-emerald-300" />
+                        Victimas:
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 pl-5">
+                        {(selectedCaseMetadata?.victims || []).length > 0 ? (
+                          (selectedCaseMetadata?.victims || []).map((victim) => (
+                            <span
+                              key={`${selectedCase?.id}-victim-${victim}`}
+                              className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100"
+                            >
+                              {victim}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-300">Sin registrar</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="flex items-center gap-2">
+                        <FiUsers size={12} className="text-rose-300" />
+                        Victimarios:
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 pl-5">
+                        {(selectedCaseMetadata?.offenders || []).length > 0 ? (
+                          (selectedCaseMetadata?.offenders || []).map((offender) => (
+                            <span
+                              key={`${selectedCase?.id}-offender-${offender}`}
+                              className="rounded-md border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-100"
+                            >
+                              {offender}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-300">Sin registrar</span>
+                        )}
+                      </div>
+                    </div>
                     <p className="flex items-center gap-2">
                       <FiMapPin size={12} className="text-fuchsia-300" />
                       Zona territorial: {selectedCaseMetadata?.zone || 'Sin registrar'}
