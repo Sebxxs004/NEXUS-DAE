@@ -1072,7 +1072,7 @@ function DashboardInvestigator({ token }) {
       return;
     }
 
-    if (selectedNodeIds.length >= 3) {
+    if (selectedNodeIds.length >= 2) {
       setSelectedNodeIds([nodeId]);
       return;
     }
@@ -1081,10 +1081,7 @@ function DashboardInvestigator({ token }) {
     setSelectedNodeIds(nextSelection);
 
     if (nextSelection.length >= 2) {
-      const candidateEdges =
-        nextSelection.length === 2
-          ? [{ a: nextSelection[0], b: nextSelection[1] }]
-          : connectPairSet(nextSelection);
+      const candidateEdges = [{ a: nextSelection[0], b: nextSelection[1] }];
 
       const newEdges = candidateEdges.filter((edge) => {
         const key = getPairKey(edge.a, edge.b);
@@ -1095,9 +1092,7 @@ function DashboardInvestigator({ token }) {
         setConnections((current) => [...current, ...newEdges]);
       }
 
-      if (nextSelection.length === 3) {
-        setSelectedNodeIds([]);
-      }
+      setSelectedNodeIds([]);
     }
   };
 
@@ -1384,6 +1379,18 @@ function DashboardInvestigator({ token }) {
       return;
     }
 
+    const missingJustification = connections.find((edge) => {
+      const pairKey = getPairKey(edge.a, edge.b);
+      return String(disagreementReasons[pairKey] || '').trim().length === 0;
+    });
+
+    if (missingJustification) {
+      const source = carpetas.find((caseItem) => caseItem.id === missingJustification.a);
+      const target = carpetas.find((caseItem) => caseItem.id === missingJustification.b);
+      setError(`Debes justificar la asociación entre ${source?.nombre || missingJustification.a} y ${target?.nombre || missingJustification.b}.`);
+      return;
+    }
+
     setError('');
     setFinishing(true);
 
@@ -1464,20 +1471,29 @@ function DashboardInvestigator({ token }) {
         onSwitchToBoard={() => setActiveSection('tablero')}
       />
     ) : (
+    <>
     <div className="h-screen bg-investigation-bg text-slate-100">
       <header className="border-b border-cyan-500/20 bg-panel-dark px-6 py-4 backdrop-blur-md">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Tablero de casos</p>
-            <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Nodos, conexiones y casos detectados</h1>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Modo fiscal</p>
+            <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
+            <p className="mt-1 text-xs text-slate-400">Tiempo investigando: <span className="font-mono text-cyan-200">{formatSeconds(elapsedSeconds)}</span></p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSection('tablero')}
+              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+            >
+              Tablero de casos
+            </button>
             <button
               type="button"
               onClick={() => setActiveSection('casos')}
               className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
             >
-              Casos
+              Gestión de casos
             </button>
             <button
               type="button"
@@ -1489,120 +1505,7 @@ function DashboardInvestigator({ token }) {
           </div>
         </div>
       </header>
-      <div className="flex h-full">
-        <aside className="w-[360px] border-r border-slate-600/30 bg-slate-950/70 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="font-mono text-lg tracking-[0.18em] text-cyan-200">MODO FISCAL</h1>
-              <p className="mt-1 text-xs text-slate-400">{usuario?.nombre ? `Sesion: ${usuario.nombre}` : 'Sesion activa'}</p>
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
-            >
-              Cerrar sesion
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-slate-400">Explora carpetas, revisa documentos y construye el grafo investigativo.</p>
-
-          <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/10 p-3">
-            <div className="flex items-center gap-2 text-sm text-cyan-200">
-              <FiClock size={15} />
-              Tiempo investigando
-            </div>
-            <p className="mt-1 font-mono text-xl text-slate-100">{formatSeconds(elapsedSeconds)}</p>
-          </div>
-
-          <div className="mt-4 rounded-lg border border-slate-500/20 bg-slate-900/60 p-3">
-            <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-400">Carpetas</p>
-            <div className="max-h-[26vh] space-y-2 overflow-y-auto pr-1">
-              {loadingCases ? (
-                <p className="text-sm text-slate-400">Cargando carpetas...</p>
-              ) : (
-                carpetas.map((caseItem) => (
-                  (() => {
-                    const metadata = caseMetadataById.get(caseItem.id);
-                    return (
-                  <button
-                    key={caseItem.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCaseId(caseItem.id);
-                      setSelectedDocument(null);
-                    }}
-                    className={`w-full rounded-md border px-3 py-2 text-left transition ${
-                      selectedCaseId === caseItem.id
-                        ? 'border-cyan-400/60 bg-cyan-500/10'
-                        : 'border-slate-500/20 bg-slate-950/50 hover:border-cyan-400/30'
-                    }`}
-                  >
-                    <p className="flex items-center gap-2 font-mono text-sm text-slate-100">
-                      <FiFolder size={14} />
-                      {caseItem.nombre}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">{caseItem.cantidad_documentos || 0} documentos</p>
-                    <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-300">
-                      <p className="flex items-center gap-1 truncate">
-                        <FiAlertTriangle size={10} className="text-amber-300" />
-                        {metadata?.offenseType || 'Sin delito'}
-                      </p>
-                      <p className="flex items-center gap-1 truncate">
-                        <FiCalendar size={10} className="text-cyan-300" />
-                        {metadata?.caseDateLabel || 'Sin fecha'}
-                      </p>
-                      <p className="col-span-2 flex items-center gap-1 truncate">
-                        <FiMapPin size={10} className="text-emerald-300" />
-                        {metadata?.zone || 'Sin zona'}
-                      </p>
-                    </div>
-                  </button>
-                    );
-                  })()
-                ))
-              )}
-            </div>
-          </div>
-
-        </aside>
-
-        <main className="flex-1 p-4">
-          <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto]">
-            <div className="rounded-lg border border-slate-500/20 bg-slate-950/50 px-4 py-3">
-              <p className="text-sm text-slate-300">
-                Conecta esferas para crear hipotesis investigativas. Cada componente conectado se convierte en un grupo.
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={finishInvestigation}
-                disabled={finishing || investigationFinished || feedbackChecking || feedbackSubmitted || Boolean(validationResult)}
-                className="flex items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60"
-              >
-                <FiTarget size={15} />
-                {finishing ? 'Validando...' : 'Terminar investigacion'}
-              </button>
-              <button
-                type="button"
-                onClick={restartInvestigation}
-                disabled={feedbackSubmitted || Boolean(validationResult)}
-                className="flex items-center gap-2 rounded-lg border border-slate-500/30 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"
-              >
-                <FiPlay size={14} />
-                Reiniciar
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFeedbackModalOpen(true)}
-                disabled={!validationResult}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60"
-              >
-                Ver feedback
-              </button>
-            </div>
-          </div>
+      <main className="h-[calc(100vh-88px)] overflow-hidden p-4">
 
           {error && (
             <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
@@ -1729,12 +1632,12 @@ function DashboardInvestigator({ token }) {
                       const source = carpetas.find((caseItem) => caseItem.id === edge.a);
                       const target = carpetas.find((caseItem) => caseItem.id === edge.b);
                       return (
-                        <div key={key} className="flex items-center justify-between gap-2 rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs">
-                          <span className={`text-slate-200 ${isConexado ? 'text-amber-200 font-semibold' : ''}`}>
-                            {source?.nombre || edge.a} - {target?.nombre || edge.b}
-                          </span>
-                          {!investigationFinished && (
-                            <div className="flex gap-2">
+                        <div key={key} className="rounded border border-slate-500/20 bg-slate-900/70 px-2 py-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-slate-200 ${isConexado ? 'text-amber-200 font-semibold' : ''}`}>
+                              {source?.nombre || edge.a} - {target?.nombre || edge.b}
+                            </span>
+                            {!investigationFinished && (
                               <button
                                 type="button"
                                 onClick={() => removeConnection(key)}
@@ -1742,8 +1645,20 @@ function DashboardInvestigator({ token }) {
                               >
                                 quitar
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
+
+                          <div className="mt-2">
+                            <label className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Justificación de asociación</label>
+                            <textarea
+                              rows="2"
+                              disabled={investigationFinished}
+                              value={disagreementReasons[key] || ''}
+                              onChange={(event) => updateDisagreement(key, event.target.value)}
+                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100 outline-none"
+                              placeholder="Explica por qué esta conexión entre los casos es válida"
+                            />
+                          </div>
                         </div>
                       );
                     })
@@ -1755,7 +1670,7 @@ function DashboardInvestigator({ token }) {
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Grupos detectados</p>
                 <div className="mt-2 space-y-2">
                   {componentsWithMeta.length === 0 ? (
-                    <p className="text-xs text-slate-400">Selecciona hasta 3 casos para crear un grupo completo.</p>
+                    <p className="text-xs text-slate-400">Selecciona 2 casos para crear un grupo completo.</p>
                   ) : (
                     componentsWithMeta.map((group) => (
                       <div
@@ -2149,8 +2064,7 @@ function DashboardInvestigator({ token }) {
           </div>
         </div>
       )}
-    </div>
-  )
+    </>)
   );
 }
 
