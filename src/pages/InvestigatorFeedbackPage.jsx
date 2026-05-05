@@ -36,7 +36,7 @@ function InvestigatorFeedbackPage({ token, onBack }) {
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">FEEDBACK INVESTIGADOR</h1>
+            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">FEEDBACK FISCAL</h1>
             <p className="font-mono text-xs text-cyan-300/70">Justificaciones no vacías por conexión</p>
           </div>
           <button
@@ -69,7 +69,7 @@ function InvestigatorFeedbackPage({ token, onBack }) {
               <div key={`${item.evaluacion_id}-${item.pair_key}`} className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                   <span className="rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-cyan-200">
-                    Investigador: {item.investigador_nombre}
+                    Fiscal: {item.investigador_nombre}
                   </span>
                   <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-emerald-200">
                     Puntaje: {item.puntaje}%

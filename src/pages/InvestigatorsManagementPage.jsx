@@ -40,8 +40,8 @@ function InvestigatorsManagementPage({ token, onBack }) {
       });
       setInvestigators(response.data || []);
     } catch (requestError) {
-      console.error('Error cargando investigadores:', requestError);
-      setError('No fue posible cargar los investigadores.');
+      console.error('Error cargando fiscales:', requestError);
+      setError('No fue posible cargar los fiscales.');
     } finally {
       setLoading(false);
     }
@@ -83,12 +83,12 @@ function InvestigatorsManagementPage({ token, onBack }) {
         { headers: authHeaders }
       );
 
-      setSuccess('Investigador creado correctamente.');
+      setSuccess('Fiscal creado correctamente.');
       closeCreate();
       await loadInvestigators();
     } catch (requestError) {
-      console.error('Error creando investigador:', requestError);
-      setError(requestError.response?.data?.error || 'No fue posible crear el investigador.');
+      console.error('Error creando fiscal:', requestError);
+      setError(requestError.response?.data?.error || 'No fue posible crear el fiscal.');
     } finally {
       setSaving(false);
     }
@@ -157,7 +157,7 @@ function InvestigatorsManagementPage({ token, onBack }) {
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">GESTION DE INVESTIGADORES</h1>
+            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">GESTION DE FISCALES</h1>
             <p className="font-mono text-xs text-cyan-300/70">Crear cuentas, cambiar contrasena y reabrir la prueba</p>
           </div>
           <button
@@ -174,7 +174,7 @@ function InvestigatorsManagementPage({ token, onBack }) {
       <main className="p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-mono text-xl font-semibold tracking-[0.15em] text-slate-100">Investigadores</h2>
+            <h2 className="font-mono text-xl font-semibold tracking-[0.15em] text-slate-100">Fiscales</h2>
             <p className="mt-1 text-sm text-slate-400">Desde aqui puedes administrar acceso y estado de la prueba.</p>
           </div>
           <button
@@ -183,7 +183,7 @@ function InvestigatorsManagementPage({ token, onBack }) {
             className="flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
           >
             <FiUserPlus size={15} />
-            Nuevo investigador
+            Nuevo fiscal
           </button>
         </div>
 
@@ -200,10 +200,10 @@ function InvestigatorsManagementPage({ token, onBack }) {
         )}
 
         {loading ? (
-          <div className="font-mono text-cyan-300">Cargando investigadores...</div>
+          <div className="font-mono text-cyan-300">Cargando fiscales...</div>
         ) : investigators.length === 0 ? (
           <div className="rounded-lg border border-slate-500/20 bg-slate-900/60 px-5 py-4 text-sm text-slate-300">
-            No hay investigadores registrados.
+            No hay fiscales registrados.
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -274,7 +274,7 @@ function InvestigatorsManagementPage({ token, onBack }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8">
           <div className="w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-6 shadow-[0_0_40px_rgba(16,185,129,0.2)]">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-mono text-lg font-semibold tracking-[0.2em] text-emerald-200">NUEVO INVESTIGADOR</h3>
+              <h3 className="font-mono text-lg font-semibold tracking-[0.2em] text-emerald-200">NUEVO FISCAL</h3>
               <button
                 type="button"
                 onClick={closeCreate}

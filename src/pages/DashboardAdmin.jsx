@@ -626,13 +626,13 @@ function DashboardAdmin() {
               onClick={() => setActiveSection('feedback')}
               className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-2 font-mono text-sm text-amber-200 transition hover:bg-amber-500/20"
             >
-              Feedback investigador
+              Feedback fiscal
             </button>
             <button
               onClick={() => setActiveSection('investigadores')}
               className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 font-mono text-sm text-emerald-200 transition hover:bg-emerald-500/20"
             >
-              Investigadores
+              Fiscales
             </button>
             <button
               onClick={logout}
@@ -1227,7 +1227,7 @@ function DashboardAdmin() {
                   <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-slate-300">
                     Tiempo Límite (minutos)
                   </label>
-                  <p className="mt-1 text-[11px] text-slate-400">Este tiempo aplicará para el Modo Caso Complejo en todos los investigadores.</p>
+                  <p className="mt-1 text-[11px] text-slate-400">Este tiempo aplicará para el Modo Caso Complejo en todos los fiscales.</p>
                   <input
                     type="number"
                     min="60"
