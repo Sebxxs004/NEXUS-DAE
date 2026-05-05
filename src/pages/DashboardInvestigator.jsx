@@ -19,12 +19,45 @@ import {
   FiXCircle,
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
+import CasesSidebarModule from './CasesSidebarModule';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
 const TICK_MS = 50;
 const NODE_RADIUS = 34;
 const GROUP_COLOR_PALETTE = ['#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#f97316'];
 const ACTOR_BADGE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#f97316'];
+
+const PLAN_ACCION_OPTIONS = [
+  {
+    key: 'ordenes_policia_judicial',
+    label: 'REALIZAR ORDENES A POLICIA JUDICIAL',
+    requiresCual: true,
+    cualLabel: '¿Cual?',
+  },
+  {
+    key: 'audiencia_control_garantias',
+    label: 'SOLICITAR AUDIENCIA A JUEZ DE CONTROL DE GARANTIAS',
+    requiresCual: true,
+    cualLabel: '¿Cual?',
+  },
+  {
+    key: 'orden_archivo',
+    label: 'ORDEN DE ARCHIVO',
+    requiresCual: false,
+    cualLabel: '',
+  },
+];
+
+function buildInitialPlanAccionState() {
+  return PLAN_ACCION_OPTIONS.reduce((accumulator, option) => {
+    accumulator[option.key] = {
+      selected: false,
+      cual: '',
+      justificacion: '',
+    };
+    return accumulator;
+  }, {});
+}
 
 const CASE_METADATA_FALLBACKS = [
   {
@@ -385,6 +418,7 @@ function DashboardInvestigator({ token }) {
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isCaseSummaryOpen, setIsCaseSummaryOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('tablero');
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
 
@@ -398,14 +432,17 @@ function DashboardInvestigator({ token }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const [groupMeta, setGroupMeta] = useState({});
+  const [groupJustifications, setGroupJustifications] = useState({});
   const [finishing, setFinishing] = useState(false);
   const [investigationFinished, setInvestigationFinished] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [disagreementReasons, setDisagreementReasons] = useState({});
+  const [planAccion, setPlanAccion] = useState(buildInitialPlanAccionState());
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackChecking, setFeedbackChecking] = useState(true);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [savingFeedback, setSavingFeedback] = useState(false);
+  const [savingPlanAccion, setSavingPlanAccion] = useState(false);
   const [savingJustifications, setSavingJustifications] = useState(false);
   const [error, setError] = useState('');
 
@@ -448,7 +485,7 @@ function DashboardInvestigator({ token }) {
       } catch (requestError) {
         console.error('Error loading cases for investigator:', requestError);
         if (!cancelled) {
-          setError('No fue posible cargar las carpetas para el investigador.');
+          setError('No fue posible cargar las carpetas para el fiscal.');
         }
       } finally {
         if (!cancelled) {
@@ -818,6 +855,57 @@ function DashboardInvestigator({ token }) {
     return map;
   }, [carpetas]);
 
+  const buildGroupGuessesPayload = () => {
+    const payload = {};
+    componentsWithMeta.forEach((group) => {
+      payload[group.key] = groupMeta[group.key]?.relationType || group.relationType || 'modalidad';
+    });
+    return payload;
+  };
+
+  const buildGroupJustificationsPayload = () => {
+    const payload = {};
+    componentsWithMeta.forEach((group) => {
+      payload[group.key] = String(groupJustifications[group.key] || '').trim();
+    });
+    return payload;
+  };
+
+  const buildPlanAccionPayload = () => {
+    return PLAN_ACCION_OPTIONS.filter((option) => Boolean(planAccion[option.key]?.selected)).map((option) => ({
+      opcion: option.key,
+      etiqueta: option.label,
+      cual: String(planAccion[option.key]?.cual || '').trim(),
+      justificacion: String(planAccion[option.key]?.justificacion || '').trim(),
+    }));
+  };
+
+  const validatePlanAccionPayload = (payload = buildPlanAccionPayload()) => {
+    for (const item of payload) {
+      if (!item.justificacion) {
+        const option = PLAN_ACCION_OPTIONS.find((candidate) => candidate.key === item.opcion);
+        return `Debes agregar justificacion para "${option?.label || item.opcion}".`;
+      }
+
+      const option = PLAN_ACCION_OPTIONS.find((candidate) => candidate.key === item.opcion);
+      if (option?.requiresCual && !item.cual) {
+        return `Debes diligenciar "${option.cualLabel}" para "${option.label}".`;
+      }
+    }
+
+    return '';
+  };
+
+  const updatePlanAccionOption = (optionKey, patch) => {
+    setPlanAccion((current) => ({
+      ...current,
+      [optionKey]: {
+        ...(current[optionKey] || { selected: false, cual: '', justificacion: '' }),
+        ...patch,
+      },
+    }));
+  };
+
   const buildJustificacionesPayload = () => {
     return connections
       .map((edge) => {
@@ -825,7 +913,7 @@ function DashboardInvestigator({ token }) {
         return {
           pairKey,
           pairLabel: formatPairLabel(pairKey, caseNameById),
-          reason: String(connectionJustifications[pairKey] || '').trim(),
+          reason: String(disagreementReasons[pairKey] || '').trim(),
         };
       })
       .filter((item) => item.reason.length > 0);
@@ -850,7 +938,21 @@ function DashboardInvestigator({ token }) {
       reasonsMap[item.pair_key] = item.reason;
     });
 
+    const nextPlanAccion = buildInitialPlanAccionState();
+    (feedback.planAccion || []).forEach((item) => {
+      if (!item?.opcion || !nextPlanAccion[item.opcion]) {
+        return;
+      }
+
+      nextPlanAccion[item.opcion] = {
+        selected: true,
+        cual: String(item.cual || ''),
+        justificacion: String(item.justificacion || ''),
+      };
+    });
+
     setDisagreementReasons(reasonsMap);
+    setPlanAccion(nextPlanAccion);
     setFeedbackSubmitted(true);
     setInvestigationFinished(true);
     setSelectedNodeIds([]);
@@ -1151,6 +1253,7 @@ function DashboardInvestigator({ token }) {
   const saveInitialFeedback = async (result) => {
     setSavingFeedback(true);
     try {
+      const planPayload = buildPlanAccionPayload();
       const response = await axios.post(
         `${API_URL}/investigacion-feedback`,
         {
@@ -1161,6 +1264,9 @@ function DashboardInvestigator({ token }) {
           incorrect: result.incorrect,
           missing: result.missing,
           justificaciones: buildJustificacionesPayload(),
+          planAccion: planPayload,
+          groupGuesses: buildGroupGuessesPayload(),
+          groupJustifications: buildGroupJustificationsPayload(),
         },
         { headers: authHeaders }
       );
@@ -1180,6 +1286,39 @@ function DashboardInvestigator({ token }) {
       return false;
     } finally {
       setSavingFeedback(false);
+    }
+  };
+
+  const savePlanAccionAndJustificaciones = async () => {
+    if (!validationResult || !feedbackSubmitted) {
+      return;
+    }
+
+    const planPayload = buildPlanAccionPayload();
+    const validationError = validatePlanAccionPayload(planPayload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSavingPlanAccion(true);
+    try {
+      const response = await axios.put(
+        `${API_URL}/investigacion-feedback/me/justificaciones`,
+        {
+          justificaciones: buildJustificacionesPayload(),
+          planAccion: planPayload,
+        },
+        { headers: authHeaders }
+      );
+
+      hydrateFeedback(response.data.feedback);
+      setError('');
+    } catch (requestError) {
+      console.error('Error guardando plan de accion y justificaciones:', requestError);
+      setError('No fue posible guardar el plan de accion global.');
+    } finally {
+      setSavingPlanAccion(false);
     }
   };
 
@@ -1220,7 +1359,7 @@ function DashboardInvestigator({ token }) {
       connections.forEach((edge) => {
         const pairKey = getPairKey(edge.a, edge.b);
         const pairLabel = formatPairLabel(pairKey, caseNameById);
-        const reason = connectionJustifications[pairKey] || '';
+        const reason = disagreementReasons[pairKey] || '';
         if (reason.trim() !== '') {
           writeLine(`- [Conexado] ${pairLabel}`, 11, [0, 100, 0]);
           writeLine(`  Motivo: ${reason}`);
@@ -1230,7 +1369,7 @@ function DashboardInvestigator({ token }) {
       });
     }
 
-    const safeName = (usuario?.nombre || 'investigador').replace(/\s+/g, '-').toLowerCase();
+    const safeName = (usuario?.nombre || 'fiscal').replace(/\s+/g, '-').toLowerCase();
     doc.save(`feedback-${safeName}.pdf`);
   };
 
@@ -1290,6 +1429,8 @@ function DashboardInvestigator({ token }) {
     setSelectedNodeIds([]);
     setValidationResult(null);
     setDisagreementReasons({});
+    setGroupJustifications({});
+    setPlanAccion(buildInitialPlanAccionState());
     setInvestigationFinished(false);
     setStartTimestamp(Date.now());
     setElapsedSeconds(0);
@@ -1300,12 +1441,59 @@ function DashboardInvestigator({ token }) {
   };
 
   return (
+    activeSection === 'casos' ? (
+      <CasesSidebarModule
+        usuario={usuario}
+        logout={logout}
+        elapsedSeconds={elapsedSeconds}
+        formatSeconds={formatSeconds}
+        loadingCases={loadingCases}
+        carpetas={carpetas}
+        selectedCaseId={selectedCaseId}
+        onSelectCase={(caseId) => {
+          setSelectedCaseId(caseId);
+          setSelectedDocument(null);
+        }}
+        caseMetadataById={caseMetadataById}
+        selectedCase={selectedCase}
+        selectedCaseMetadata={selectedCaseMetadata}
+        loadingDocuments={loadingDocuments}
+        selectedCaseDocuments={selectedCaseDocuments}
+        selectedDocument={selectedDocument}
+        onSelectDocument={setSelectedDocument}
+        onSwitchToBoard={() => setActiveSection('tablero')}
+      />
+    ) : (
     <div className="h-screen bg-investigation-bg text-slate-100">
+      <header className="border-b border-cyan-500/20 bg-panel-dark px-6 py-4 backdrop-blur-md">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Tablero de casos</p>
+            <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Nodos, conexiones y casos detectados</h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSection('casos')}
+              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+            >
+              Casos
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+            >
+              Cerrar sesion
+            </button>
+          </div>
+        </div>
+      </header>
       <div className="flex h-full">
         <aside className="w-[360px] border-r border-slate-600/30 bg-slate-950/70 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="font-mono text-lg tracking-[0.18em] text-cyan-200">MODO INVESTIGADOR</h1>
+              <h1 className="font-mono text-lg tracking-[0.18em] text-cyan-200">MODO FISCAL</h1>
               <p className="mt-1 text-xs text-slate-400">{usuario?.nombre ? `Sesion: ${usuario.nombre}` : 'Sesion activa'}</p>
             </div>
             <button
@@ -1459,7 +1647,7 @@ function DashboardInvestigator({ token }) {
                     return null;
                   }
                   const pairKey = getPairKey(edge.a, edge.b);
-                  const isConexado = !!connectionJustifications[pairKey] && connectionJustifications[pairKey].trim() !== '';
+                  const isConexado = !!disagreementReasons[pairKey] && disagreementReasons[pairKey].trim() !== '';
                   return (
                     <line
                       key={pairKey}
@@ -1537,7 +1725,7 @@ function DashboardInvestigator({ token }) {
                   ) : (
                     activeConnections.map((edge) => {
                       const key = getPairKey(edge.a, edge.b);
-                      const isConexado = !!connectionJustifications[key] && connectionJustifications[key].trim() !== '';
+                      const isConexado = !!disagreementReasons[key] && disagreementReasons[key].trim() !== '';
                       const source = carpetas.find((caseItem) => caseItem.id === edge.a);
                       const target = carpetas.find((caseItem) => caseItem.id === edge.b);
                       return (
@@ -1547,15 +1735,6 @@ function DashboardInvestigator({ token }) {
                           </span>
                           {!investigationFinished && (
                             <div className="flex gap-2">
-                              {!isConexado && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingConnections([edge])}
-                                  className="text-amber-300 hover:text-amber-200"
-                                >
-                                  conexar
-                                </button>
-                              )}
                               <button
                                 type="button"
                                 onClick={() => removeConnection(key)}
@@ -1587,128 +1766,37 @@ function DashboardInvestigator({ token }) {
                           backgroundColor: hexToRgba(group.color, 0.12),
                         }}
                       >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            disabled={investigationFinished}
-                            value={groupMeta[group.key]?.color || group.color}
-                            onChange={(event) => updateGroupMeta(group.key, { color: event.target.value })}
-                            className="h-9 w-10 cursor-pointer rounded border border-slate-500/30 bg-transparent p-1"
-                            aria-label={`Color del grupo ${groupMeta[group.key]?.name || group.name}`}
-                          />
-                          <div className="flex-1">
-                            <input
-                              type="text"
-                              disabled={investigationFinished}
-                              value={groupMeta[group.key]?.name || group.name}
-                              onChange={(event) => updateGroupMeta(group.key, { name: event.target.value })}
-                              className="w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                              placeholder="Nombre del grupo"
-                            />
-                            <select
-                              disabled={investigationFinished || Boolean(finalizedGroups[group.key])}
-                              value={groupMeta[group.key]?.relationType || group.relationType}
-                              onChange={(event) => updateGroupMeta(group.key, { relationType: event.target.value })}
-                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                            >
-                              <option value="modalidad">Asociado por modalidad</option>
-                              <option value="patrones">Asociado por patron</option>
-                            </select>
-                          </div>
-                        </div>
-                          <button
-                            type="button"
-                            onClick={() => finalizeGroup(group)}
-                            disabled={investigationFinished || Boolean(finalizedGroups[group.key])}
-                            className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <FiSave size={13} />
-                            {finalizedGroups[group.key] ? 'Grupo finalizado' : 'Finalizar grupo'}
-                          </button>
-
-                          {finalizedGroups[group.key] && (() => {
-                            const snapshot = finalizedGroups[group.key];
-                            const layout = buildCompactGraphLayout(snapshot.nodes || snapshot.cases || []);
-                            return (
-                              <div className="mt-3 rounded-lg border border-emerald-400/20 bg-slate-950/60 p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
-                                      Grafo finalizado
-                                    </p>
-                                    <p className="mt-1 text-[11px] text-slate-400">
-                                      {snapshot.groupName || group.name} · {snapshot.relationType === 'patrones' ? 'Patrón' : 'Modalidad'}
-                                    </p>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400">
-                                    {layout.nodes.length} nodos / {snapshot.connections.length} conexiones
-                                  </span>
-                                </div>
-
-                                <div className="mt-3 overflow-hidden rounded-xl border border-slate-500/20 bg-slate-950/80 p-2">
-                                  <svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="h-[170px] w-full">
-                                    {snapshot.connections.map((edge) => {
-                                      const source = layout.nodes.find((node) => String(node.id) === String(edge.sourceId));
-                                      const target = layout.nodes.find((node) => String(node.id) === String(edge.targetId));
-                                      if (!source || !target) {
-                                        return null;
-                                      }
-
-                                      return (
-                                        <line
-                                          key={edge.key}
-                                          x1={source.x}
-                                          y1={source.y}
-                                          x2={target.x}
-                                          y2={target.y}
-                                          stroke={snapshot.color || '#38bdf8'}
-                                          strokeWidth="2"
-                                          opacity="0.85"
-                                        />
-                                      );
-                                    })}
-
-                                    {layout.nodes.map((node) => (
-                                      <g key={node.id}>
-                                        <circle
-                                          cx={node.x}
-                                          cy={node.y}
-                                          r="20"
-                                          fill={hexToRgba(snapshot.color || '#38bdf8', 0.18)}
-                                          stroke={hexToRgba(snapshot.color || '#38bdf8', 0.65)}
-                                          strokeWidth="1.5"
-                                        />
-                                        <text
-                                          x={node.x}
-                                          y={node.y - 25}
-                                          textAnchor="middle"
-                                          fill="#e2e8f0"
-                                          fontSize="9"
-                                          fontWeight="700"
-                                        >
-                                          {String(node.name || '').slice(0, 12)}
-                                        </text>
-                                        <text
-                                          x={node.x}
-                                          y={node.y + 3}
-                                          textAnchor="middle"
-                                          fill="#e2e8f0"
-                                          fontSize="8"
-                                          fontWeight="700"
-                                        >
-                                          {String(node.name || '').slice(0, 10)}
-                                        </text>
-                                      </g>
-                                    ))}
-                                  </svg>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                        <p className="mt-2 text-[11px]" style={{ color: hexToRgba(group.color, 0.9) }}>
-                          {group.ids.length} casos conectados
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                          Grupo {group.index + 1}
                         </p>
+                        <div className="mt-2">
+                          <label className="text-[11px] text-slate-300">Asociación</label>
+                          <select
+                            disabled={investigationFinished}
+                            value={groupMeta[group.key]?.relationType || group.relationType}
+                            onChange={(event) => updateGroupMeta(group.key, { relationType: event.target.value })}
+                            className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
+                          >
+                            <option value="modalidad">Asociado por modalidad</option>
+                            <option value="patrones">Asociado por patron</option>
+                          </select>
+                        </div>
+                        <div className="mt-2">
+                          <label className="text-[11px] text-slate-300">Justificación</label>
+                          <textarea
+                            rows="3"
+                            disabled={investigationFinished}
+                            value={groupJustifications[group.key] || ''}
+                            onChange={(event) =>
+                              setGroupJustifications((current) => ({
+                                ...current,
+                                [group.key]: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
+                            placeholder="Describe por qué esta asociación es válida para el grupo detectado"
+                          />
+                        </div>
                       </div>
                     ))
                   )}
@@ -1740,7 +1828,7 @@ function DashboardInvestigator({ token }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Feedback Final</p>
-                <p className="mt-1 font-mono text-lg text-slate-100">{usuario?.nombre || 'Investigador'}</p>
+                <p className="mt-1 font-mono text-lg text-slate-100">{usuario?.nombre || 'Fiscal'}</p>
               </div>
               <button
                 type="button"
@@ -1762,7 +1850,7 @@ function DashboardInvestigator({ token }) {
                   <ul className="space-y-2">
                     {connections.map((edge) => {
                       const pairKey = getPairKey(edge.a, edge.b);
-                      const isConexado = !!connectionJustifications[pairKey] && connectionJustifications[pairKey].trim() !== '';
+                      const isConexado = !!disagreementReasons[pairKey] && disagreementReasons[pairKey].trim() !== '';
                       return (
                         <li key={pairKey} className="text-xs">
                           <span className={isConexado ? "text-amber-300 font-semibold" : "text-slate-300"}>
@@ -1770,7 +1858,7 @@ function DashboardInvestigator({ token }) {
                           </span>
                           {isConexado && (
                             <p className="mt-1 text-slate-400 pl-2 border-l border-slate-500/30">
-                              {connectionJustifications[pairKey]}
+                              {disagreementReasons[pairKey]}
                             </p>
                           )}
                         </li>
@@ -1781,7 +1869,83 @@ function DashboardInvestigator({ token }) {
               </div>
             </div>
 
+            <div className="mt-4 rounded-lg border border-cyan-500/20 bg-slate-900/70 p-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Plan de acción global</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Si seleccionas una opción, debes diligenciar justificación. El campo ¿Cual? solo aplica en las opciones que lo piden.
+              </p>
+
+              <div className="mt-3 space-y-3">
+                {PLAN_ACCION_OPTIONS.map((option) => {
+                  const optionState = planAccion[option.key] || { selected: false, cual: '', justificacion: '' };
+                  return (
+                    <div key={option.key} className="rounded border border-slate-500/20 bg-slate-950/50 p-3">
+                      <label className="flex items-start gap-2 text-xs text-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={optionState.selected}
+                          disabled={savingPlanAccion}
+                          onChange={(event) =>
+                            updatePlanAccionOption(option.key, {
+                              selected: event.target.checked,
+                            })
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-slate-500/30 bg-slate-900/80"
+                        />
+                        <span>{option.label}</span>
+                      </label>
+
+                      {optionState.selected && (
+                        <div className="mt-2 space-y-2">
+                          {option.requiresCual && (
+                            <div>
+                              <label className="text-[11px] text-slate-300">{option.cualLabel}</label>
+                              <input
+                                type="text"
+                                value={optionState.cual}
+                                disabled={savingPlanAccion}
+                                onChange={(event) =>
+                                  updatePlanAccionOption(option.key, {
+                                    cual: event.target.value,
+                                  })
+                                }
+                                className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
+                                placeholder="Especifica la autoridad o despacho"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label className="text-[11px] text-slate-300">Justificación</label>
+                            <textarea
+                              rows="3"
+                              value={optionState.justificacion}
+                              disabled={savingPlanAccion}
+                              onChange={(event) =>
+                                updatePlanAccionOption(option.key, {
+                                  justificacion: event.target.value,
+                                })
+                              }
+                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
+                              placeholder="Sustenta jurídicamente esta opción"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={savePlanAccionAndJustificaciones}
+                disabled={savingPlanAccion || savingFeedback || !validationResult}
+                className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60"
+              >
+                {savingPlanAccion ? 'Guardando plan...' : 'Guardar plan y justificaciones'}
+              </button>
               <button
                 type="button"
                 onClick={downloadFeedbackPdf}
@@ -1986,6 +2150,7 @@ function DashboardInvestigator({ token }) {
         </div>
       )}
     </div>
+  )
   );
 }
 

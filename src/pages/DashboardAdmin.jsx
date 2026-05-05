@@ -47,8 +47,6 @@ function DashboardAdmin() {
     victimario: '',
     zona_territorial: '',
     actores_involucrados: '',
-    es_autor_intelectual: false,
-    es_zona_operacion: false,
     documentos: [{ ...EMPTY_DOCUMENT }],
   });
 
@@ -161,8 +159,6 @@ function DashboardAdmin() {
       victimario: '',
       zona_territorial: '',
       actores_involucrados: '',
-      es_autor_intelectual: false,
-      es_zona_operacion: false,
       documentos: [{ ...EMPTY_DOCUMENT }],
     });
     setIsEditMode(false);
@@ -210,8 +206,6 @@ function DashboardAdmin() {
         actores_involucrados: Array.isArray(carpeta.actores_involucrados)
           ? carpeta.actores_involucrados.join(', ')
           : (carpeta.actores_involucrados || ''),
-        es_autor_intelectual: Boolean(carpeta.es_autor_intelectual),
-        es_zona_operacion: Boolean(carpeta.es_zona_operacion),
         documentos,
       });
       setSelectedCaseId(carpeta.id);
@@ -398,8 +392,6 @@ function DashboardAdmin() {
             victimario: modalData.victimario,
             zona_territorial: modalData.zona_territorial,
             actores_involucrados: modalData.actores_involucrados,
-            es_autor_intelectual: modalData.es_autor_intelectual,
-            es_zona_operacion: modalData.es_zona_operacion,
           },
           {
             headers: authHeaders,
@@ -418,8 +410,6 @@ function DashboardAdmin() {
             victimario: modalData.victimario,
             zona_territorial: modalData.zona_territorial,
             actores_involucrados: modalData.actores_involucrados,
-            es_autor_intelectual: modalData.es_autor_intelectual,
-            es_zona_operacion: modalData.es_zona_operacion,
             usuario_id: usuario.id,
           },
           {
@@ -830,32 +820,6 @@ function DashboardAdmin() {
                       placeholder="Separados por coma, ej: FGN, CTI, SIJIN"
                       className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
                     />
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-orange-500/20 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-300">Objetivos Secundarios (Modo Complejo)</p>
-                  <p className="mt-1 mb-3 text-[11px] text-slate-400">Marca las opciones si esta carpeta es la respuesta a algún objetivo secundario.</p>
-                  
-                  <div className="flex flex-col gap-3">
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={modalData.es_autor_intelectual}
-                        onChange={(e) => setModalData((current) => ({ ...current, es_autor_intelectual: e.target.checked }))}
-                        className="h-4 w-4 rounded border-slate-500/30 bg-slate-900/80 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span className="text-sm text-slate-200">Este caso contiene al Autor Intelectual</span>
-                    </label>
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={modalData.es_zona_operacion}
-                        onChange={(e) => setModalData((current) => ({ ...current, es_zona_operacion: e.target.checked }))}
-                        className="h-4 w-4 rounded border-slate-500/30 bg-slate-900/80 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span className="text-sm text-slate-200">Este caso define la Zona de Operación</span>
-                    </label>
                   </div>
                 </div>
 
