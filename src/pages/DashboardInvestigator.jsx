@@ -185,7 +185,10 @@ function normalizeActors(rawValue) {
 
 function parseQuotedCommaValues(rawValue) {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => String(item || '').trim()).filter(Boolean);
+    return rawValue
+      .flatMap((item) => parseQuotedCommaValues(item))
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
   }
 
   if (typeof rawValue !== 'string') {
@@ -233,7 +236,10 @@ function parseQuotedCommaValues(rawValue) {
 
 function parseCommaSeparatedValues(rawValue) {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => String(item || '').trim()).filter(Boolean);
+    return rawValue
+      .flatMap((item) => parseCommaSeparatedValues(item))
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
   }
 
   if (typeof rawValue !== 'string') {
