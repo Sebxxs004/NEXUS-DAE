@@ -55,5 +55,5 @@ app.get('*', (req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`PRISMA DAE Server running on port ${PORT}`);
+  console.log(`NEXUS DAE Server running on port ${PORT}`);
 });

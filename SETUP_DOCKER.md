@@ -14,7 +14,7 @@ docker compose up -d
 ```
 
 Esto iniciará:
-- **PostgreSQL** en el puerto 5433
+- **PostgreSQL** en el puerto 5435
 - Base de datos: `prisma_dae`
 - Usuario: `prisma_admin`
 - Contraseña: `prisma_secure_2026`
@@ -101,7 +101,7 @@ DB_USER=prisma_admin
 DB_PASSWORD=prisma_secure_2026
 DB_HOST=localhost
 DB_NAME=prisma_dae
-DB_PORT=5433
+DB_PORT=5435
 JWT_SECRET=prisma_secret_key_2026
 PORT=5000
 ```
@@ -133,7 +133,7 @@ PORT=5000
 
 ### Error: "Cannot connect to database"
   - Verificar que el contenedor PostgreSQL está corriendo: `docker compose ps`
-  - Verificar puerto 5433 no esté ocupado
+  - Verificar puerto 5435 no esté ocupado
 
 ### Error al ejecutar varios comandos en PowerShell
   - En PowerShell usa `;` para encadenar comandos, por ejemplo: `docker compose up -d; Set-Location server; npm install; npm start`

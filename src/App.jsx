@@ -16,7 +16,7 @@ function App() {
   if (!sessionRestored) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-investigation-bg">
-        <div className="font-mono text-cyan-300">INICIALIZANDO PRISMA...</div>
+        <div className="font-mono text-cyan-300">INICIALIZANDO NEXUS...</div>
       </div>
     );
   }

@@ -602,7 +602,7 @@ function DashboardAdmin() {
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">PRISMA DAE</h1>
+            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">NEXUS DAE</h1>
             <p className="font-mono text-xs text-cyan-300/70">Bienvenido {usuario?.nombre}</p>
           </div>
           <div className="flex items-center gap-2">

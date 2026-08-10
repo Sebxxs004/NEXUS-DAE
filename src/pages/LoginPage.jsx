@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import useAuthStore from '../store/useAuthStore';
 import fgnLogo from '../assets/fgn-logo.png';
-import prismaLogo from '../assets/PRISMA-DAE.png';
+import nexusLogo from '../assets/NEXUS-DAE.png';
 import fondoLogin from '../assets/fondo-login.png';
 
 function LoginPage() {
@@ -30,24 +30,33 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-investigation-bg text-slate-100">
-      <aside className="relative z-10 flex h-full w-full max-w-[460px] flex-col justify-between border-r border-white/10 bg-panel-dark px-8 py-10 backdrop-blur-xl md:px-10">
-        <div className="space-y-6">
+    <div 
+      className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-cover bg-center bg-no-repeat text-slate-100"
+      style={{
+        backgroundImage: `linear-gradient(135deg, rgba(10, 15, 22, 0.9) 0%, rgba(10, 15, 22, 0.7) 100%), url(${fondoLogin})`,
+      }}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,240,255,0.06),transparent_70%)]" />
+
+      <div className="relative z-10 w-full max-w-[460px] rounded-2xl border border-white/10 bg-panel-dark/60 p-8 shadow-2xl backdrop-blur-xl md:p-10">
+        <div className="flex flex-col items-center text-center space-y-6">
+          
+          <img
+            src={nexusLogo}
+            alt="Logo NEXUS DAE"
+            className="h-28 w-auto drop-shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+          />
+
           <div className="space-y-2">
             <p className="font-mono text-xs uppercase tracking-[0.4em] text-cyan-300/90">
-              PRISMA DAE
+              NEXUS DAE
             </p>
-            <h1 className="max-w-sm font-mono text-3xl font-semibold uppercase tracking-[0.14em] text-slate-50 md:text-[2.15rem]">
-              Simulador de Investigación Estructural del Despacho Fiscal
+            <h1 className="font-mono text-xl font-semibold uppercase tracking-[0.1em] text-slate-50">
+              Actividad de simulación interactiva de Despacho Fiscal
             </h1>
-            <p className="max-w-sm text-sm leading-6 text-slate-300/90">
-              Acceso seguro para fiscales autorizados. Fortalezca la identificación
-              de patrones criminales, la asociación de casos, la articulación del
-              equipo y la formulación del plan de acción para casos complejos.
-            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="w-full space-y-5 text-left">
             {error && (
               <div className="rounded-lg border border-orange-500/50 bg-orange-500/10 px-4 py-2 text-sm text-orange-300">
                 {error}
@@ -64,7 +73,7 @@ function LoginPage() {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="admin@prisma.dae"
+                placeholder="admin@nexus.dae"
                 disabled={loading}
                 className="w-full rounded-lg border border-cyan-500/20 bg-slate-950/60 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition placeholder:text-slate-500 disabled:opacity-50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               />
@@ -95,47 +104,17 @@ function LoginPage() {
             </button>
           </form>
 
+          <div className="w-full pt-4">
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent mb-4" />
+            <img
+              src={fgnLogo}
+              alt="Logo FGN"
+              className="h-12 w-auto mx-auto opacity-75 drop-shadow-[0_0_10px_rgba(0,240,255,0.08)]"
+            />
+          </div>
+
         </div>
-
-        <div className="space-y-3">
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
-          <img
-            src={fgnLogo}
-            alt="Logo FGN"
-            className="h-16 w-auto opacity-90 drop-shadow-[0_0_18px_rgba(0,240,255,0.16)]"
-          />
-        </div>
-      </aside>
-
-      <main
-        className="relative flex flex-1 items-center justify-center bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `linear-gradient(90deg, rgba(10, 15, 22, 0.96) 0%, rgba(10, 15, 22, 0.72) 34%, rgba(10, 15, 22, 0.28) 68%, rgba(10, 15, 22, 0.12) 100%), url(${fondoLogin})`,
-        }}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,240,255,0.08),transparent_55%)]" />
-
-        <div className="animate-slide-in-down relative max-w-2xl px-8 text-center">
-          <p className="font-mono text-xs uppercase tracking-[0.45em] text-cyan-300/80">
-            PRISMA DAE
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-[0.06em] text-slate-100 drop-shadow-[0_0_24px_rgba(0,240,255,0.18)] md:text-4xl">
-            Entrenamiento para fiscales en análisis estratégico, asociación de
-            casos y dirección integral de investigaciones complejas.
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300/90 md:text-base">
-            Este juego fortalece el análisis de expedientes, la identificación de
-            fenómenos criminales, la coordinación intra e interinstitucional y la
-            construcción del plan de acción del despacho con enfoque jurídico.
-          </p>
-
-          <img
-            src={prismaLogo}
-            alt="Logo PRISMA DAE"
-            className="mx-auto mt-4 h-48 w-auto md:h-64"
-          />
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

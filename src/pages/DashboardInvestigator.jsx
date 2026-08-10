@@ -427,6 +427,9 @@ function DashboardInvestigator({ token }) {
   const [connections, setConnections] = useState([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [finalizedGroups, setFinalizedGroups] = useState({});
+  const [pendingConnection, setPendingConnection] = useState(null);
+  const [connectionJustificationDraft, setConnectionJustificationDraft] = useState('');
+  const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
 
   const [startTimestamp, setStartTimestamp] = useState(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -815,15 +818,11 @@ function DashboardInvestigator({ token }) {
   );
 
   useEffect(() => {
-    if (selectedCase) {
-      setIsCaseSummaryOpen(true);
+    if (!selectedCase && isCaseSummaryOpen) {
+      setIsCaseSummaryOpen(false);
       setSelectedDocument(null);
-      return;
     }
-
-    setIsCaseSummaryOpen(false);
-    setSelectedDocument(null);
-  }, [selectedCase]);
+  }, [selectedCase, isCaseSummaryOpen]);
 
   const selectedCaseDocuments = useMemo(
     () => documentsByCase[selectedCaseId] || [],
@@ -1081,19 +1080,52 @@ function DashboardInvestigator({ token }) {
     setSelectedNodeIds(nextSelection);
 
     if (nextSelection.length >= 2) {
-      const candidateEdges = [{ a: nextSelection[0], b: nextSelection[1] }];
+      const candidateEdge = { a: nextSelection[0], b: nextSelection[1] };
+      const key = getPairKey(candidateEdge.a, candidateEdge.b);
 
-      const newEdges = candidateEdges.filter((edge) => {
-        const key = getPairKey(edge.a, edge.b);
-        return !connections.some((currentEdge) => getPairKey(currentEdge.a, currentEdge.b) === key);
-      });
-
-      if (newEdges.length > 0) {
-        setConnections((current) => [...current, ...newEdges]);
+      if (connections.some((currentEdge) => getPairKey(currentEdge.a, currentEdge.b) === key)) {
+        setSelectedNodeIds([]);
+        return;
       }
 
+      setPendingConnection(candidateEdge);
+      setConnectionJustificationDraft('');
+      setIsConnectionModalOpen(true);
       setSelectedNodeIds([]);
     }
+  };
+
+  const closeConnectionJustificationModal = () => {
+    setIsConnectionModalOpen(false);
+    setPendingConnection(null);
+    setConnectionJustificationDraft('');
+  };
+
+  const confirmPendingConnection = () => {
+    if (!pendingConnection) {
+      return;
+    }
+
+    const justification = String(connectionJustificationDraft || '').trim();
+    if (!justification) {
+      setError('Debes escribir una justificación para asociar los dos nodos.');
+      return;
+    }
+
+    const pairKey = getPairKey(pendingConnection.a, pendingConnection.b);
+    setError('');
+    setConnections((current) => {
+      if (current.some((edge) => getPairKey(edge.a, edge.b) === pairKey)) {
+        return current;
+      }
+
+      return [...current, pendingConnection];
+    });
+    setDisagreementReasons((current) => ({
+      ...current,
+      [pairKey]: justification,
+    }));
+    closeConnectionJustificationModal();
   };
 
   const removeConnection = (edgeKey) => {
@@ -1341,7 +1373,7 @@ function DashboardInvestigator({ token }) {
       });
     };
 
-    writeLine('Feedback Fiscal - PRISMA DAE', 15, [0, 90, 140]);
+    writeLine('Feedback Fiscal - NEXUS DAE', 15, [0, 90, 140]);
     writeLine(`Fiscal: ${usuario?.nombre || 'Sin nombre'}`);
     writeLine(`Fecha: ${new Date().toLocaleString()}`);
     writeLine(`Total de Conexiones Trazadas: ${connections.length}`);
@@ -1443,6 +1475,12 @@ function DashboardInvestigator({ token }) {
     setElapsedSeconds(0);
   };
 
+  const handleOpenCaseDetails = (caseId) => {
+    setSelectedCaseId(caseId);
+    setSelectedDocument(null);
+    setIsCaseSummaryOpen(true);
+  };
+
   const updateDisagreement = (pairKey, text) => {
     setDisagreementReasons((current) => ({ ...current, [pairKey]: text }));
   };
@@ -1468,6 +1506,7 @@ function DashboardInvestigator({ token }) {
         selectedCaseDocuments={selectedCaseDocuments}
         selectedDocument={selectedDocument}
         onSelectDocument={setSelectedDocument}
+        onOpenCaseDetails={handleOpenCaseDetails}
         onSwitchToBoard={() => setActiveSection('tablero')}
       />
     ) : (
@@ -1481,6 +1520,22 @@ function DashboardInvestigator({ token }) {
             <p className="mt-1 text-xs text-slate-400">Tiempo investigando: <span className="font-mono text-cyan-200">{formatSeconds(elapsedSeconds)}</span></p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={restartInvestigation}
+              disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
+              className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiPlay className="inline-block -translate-y-[1px]" size={14} /> Reiniciar investigación
+            </button>
+            <button
+              type="button"
+              onClick={finishInvestigation}
+              disabled={Boolean(validationResult) || feedbackSubmitted || finishing || savingFeedback}
+              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiSave className="inline-block -translate-y-[1px]" size={14} /> {finishing ? 'Terminando...' : 'Terminar investigación'}
+            </button>
             <button
               type="button"
               onClick={() => setActiveSection('tablero')}
@@ -1620,6 +1675,9 @@ function DashboardInvestigator({ token }) {
             </div>
 
             <div className="h-full space-y-3 overflow-y-auto rounded-xl border border-slate-500/20 bg-slate-950/60 p-3">
+              <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100">
+                Las conexiones se confirman con una justificación en modal. Esa justificación se guarda en el feedback final.
+              </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Conexiones ({activeConnections.length})</p>
                 <div className="mt-2 space-y-1">
@@ -1649,15 +1707,10 @@ function DashboardInvestigator({ token }) {
                           </div>
 
                           <div className="mt-2">
-                            <label className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Justificación de asociación</label>
-                            <textarea
-                              rows="2"
-                              disabled={investigationFinished}
-                              value={disagreementReasons[key] || ''}
-                              onChange={(event) => updateDisagreement(key, event.target.value)}
-                              className="mt-1 w-full rounded border border-slate-500/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100 outline-none"
-                              placeholder="Explica por qué esta conexión entre los casos es válida"
-                            />
+                            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Justificación de asociación</p>
+                            <p className="mt-1 rounded border border-slate-500/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100">
+                              {disagreementReasons[key] || 'Sin justificación registrada.'}
+                            </p>
                           </div>
                         </div>
                       );
@@ -1736,6 +1789,58 @@ function DashboardInvestigator({ token }) {
           </div>
         </main>
       </div>
+
+      {isConnectionModalOpen && pendingConnection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-5 shadow-[0_0_45px_rgba(8,145,178,0.28)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Justificar asociación</p>
+                <p className="mt-1 font-mono text-lg text-slate-100">{formatPairLabel(getPairKey(pendingConnection.a, pendingConnection.b), caseNameById)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeConnectionJustificationModal}
+                className="rounded-lg border border-slate-500/30 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+              La conexión se agregará al tablero cuando guardes esta justificación.
+            </div>
+
+            <div className="mt-4">
+              <label className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Justificación</label>
+              <textarea
+                rows="4"
+                value={connectionJustificationDraft}
+                onChange={(event) => setConnectionJustificationDraft(event.target.value)}
+                className="mt-2 w-full rounded border border-slate-500/20 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none"
+                placeholder="Explica por qué estos dos casos deben asociarse"
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={confirmPendingConnection}
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+              >
+                Guardar y conectar
+              </button>
+              <button
+                type="button"
+                onClick={closeConnectionJustificationModal}
+                className="rounded-lg border border-slate-500/30 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/40"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isFeedbackModalOpen && validationResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
@@ -1890,7 +1995,6 @@ function DashboardInvestigator({ token }) {
                 type="button"
                 onClick={() => {
                   setIsCaseSummaryOpen(false);
-                  setSelectedCaseId(null);
                   setSelectedDocument(null);
                 }}
                 className="rounded-lg border border-slate-500/30 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"

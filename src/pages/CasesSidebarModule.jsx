@@ -48,6 +48,7 @@ function CasesSidebarModule({
   selectedDocument,
   onSelectDocument,
   onClose,
+  onOpenCaseDetails,
   onSwitchToBoard,
 }) {
   return (
@@ -98,36 +99,50 @@ function CasesSidebarModule({
                 carpetas.map((caseItem) => {
                   const metadata = caseMetadataById.get(caseItem.id);
                   return (
-                    <button
+                    <div
                       key={caseItem.id}
-                      type="button"
-                      onClick={() => onSelectCase(caseItem.id)}
-                      className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                      className={`w-full rounded-md border px-3 py-2 transition ${
                         selectedCaseId === caseItem.id
                           ? 'border-cyan-400/60 bg-cyan-500/10'
                           : 'border-slate-500/20 bg-slate-950/50 hover:border-cyan-400/30'
                       }`}
                     >
-                      <p className="flex items-center gap-2 font-mono text-sm text-slate-100">
-                        <FiFolder size={14} />
-                        {caseItem.nombre}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">{caseItem.cantidad_documentos || 0} documentos</p>
-                      <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-300">
-                        <p className="flex items-center gap-1 truncate">
-                          <FiAlertTriangle size={10} className="text-amber-300" />
-                          {metadata?.offenseType || 'Sin delito'}
+                      <button
+                        type="button"
+                        onClick={() => onSelectCase(caseItem.id)}
+                        className="w-full text-left"
+                      >
+                        <p className="flex items-center gap-2 font-mono text-sm text-slate-100">
+                          <FiFolder size={14} />
+                          {caseItem.nombre}
                         </p>
-                        <p className="flex items-center gap-1 truncate">
-                          <FiCalendar size={10} className="text-cyan-300" />
-                          {metadata?.caseDateLabel || 'Sin fecha'}
-                        </p>
-                        <p className="col-span-2 flex items-center gap-1 truncate">
-                          <FiMapPin size={10} className="text-emerald-300" />
-                          {metadata?.zone || 'Sin zona'}
-                        </p>
+                        <p className="mt-1 text-xs text-slate-400">{caseItem.cantidad_documentos || 0} documentos</p>
+                        <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-300">
+                          <p className="flex items-center gap-1 truncate">
+                            <FiAlertTriangle size={10} className="text-amber-300" />
+                            {metadata?.offenseType || 'Sin delito'}
+                          </p>
+                          <p className="flex items-center gap-1 truncate">
+                            <FiCalendar size={10} className="text-cyan-300" />
+                            {metadata?.caseDateLabel || 'Sin fecha'}
+                          </p>
+                          <p className="col-span-2 flex items-center gap-1 truncate">
+                            <FiMapPin size={10} className="text-emerald-300" />
+                            {metadata?.zone || 'Sin zona'}
+                          </p>
+                        </div>
+                      </button>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-400">Seleccionada para documentos</p>
+                        <button
+                          type="button"
+                          onClick={() => onOpenCaseDetails(caseItem.id)}
+                          className="rounded-md border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                        >
+                          Ver detalles
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })
               )}
