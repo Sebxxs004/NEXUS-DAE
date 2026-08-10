@@ -15,11 +15,17 @@ import {
   FiSave,
   FiShield,
   FiTarget,
+  FiTool,
+  FiTrendingUp,
   FiUsers,
   FiXCircle,
+  FiZap,
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
 import CasesSidebarModule from './CasesSidebarModule';
+import fgnLogo from '../assets/fgn-logo.png';
+import nexusLogo from '../assets/NEXUS-DAE.png';
+import fondoLogin from '../assets/fondo-login.png';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
 const TICK_MS = 50;
@@ -412,6 +418,12 @@ function DashboardInvestigator({ token }) {
   const boardRef = useRef(null);
   const groupedRegionsRef = useRef([]);
   const { usuario, logout } = useAuthStore();
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const isFirst = localStorage.getItem(`nexus_first_login_${usuario?.id}`);
+    return isFirst === null;
+  });
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const [carpetas, setCarpetas] = useState([]);
   const [documentsByCase, setDocumentsByCase] = useState({});
@@ -450,6 +462,17 @@ function DashboardInvestigator({ token }) {
   const [error, setError] = useState('');
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  useEffect(() => {
+    if (showWelcome) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showWelcome]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1486,8 +1509,404 @@ function DashboardInvestigator({ token }) {
   };
 
   return (
-    activeSection === 'casos' ? (
-      <CasesSidebarModule
+    <>
+      {showWelcome && (
+        <div 
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-no-repeat bg-cover bg-center text-slate-100 overflow-hidden"
+          style={{
+            backgroundImage: `linear-gradient(135deg, rgba(6, 10, 15, 0.96) 0%, rgba(6, 10, 15, 0.94) 100%), url(${fondoLogin})`,
+          }}
+        >
+          <div className="flex flex-col items-center max-w-lg px-8 text-center space-y-8 animate-welcome-fade">
+            {/* Logos */}
+            <div className="flex items-center justify-center gap-8 md:gap-12 animate-welcome-zoom">
+              <img
+                src={nexusLogo}
+                alt="Logo NEXUS DAE"
+                className="h-32 w-auto drop-shadow-[0_0_20px_rgba(0,240,255,0.25)]"
+              />
+              <div className="h-20 w-px bg-slate-700" />
+              <img
+                src={fgnLogo}
+                alt="Logo Fiscalía"
+                className="h-12 w-auto drop-shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+              />
+            </div>
+ 
+            {/* Welcoming Text */}
+            <div className="space-y-4 animate-welcome-slide1">
+              <h1 className="font-mono text-3xl font-bold uppercase tracking-[0.15em] text-cyan-300 drop-shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+                Bienvenido a tu despacho
+              </h1>
+              <p className="max-w-md text-sm leading-6 text-slate-300">
+                Has ingresado al simulador de investigación estructural de la Fiscalía. Prepárate para analizar casos complejos y conectar nexos delictivos de manera estratégica.
+              </p>
+            </div>
+ 
+            {/* Action Button */}
+            <button
+              onClick={() => {
+                setShowWelcome(false);
+                setShowInstructions(true);
+                setCurrentStep(1);
+              }}
+              className="animate-welcome-slide2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-8 py-3 font-mono text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200 transition hover:bg-cyan-500/20 hover:text-white"
+            >
+              Continuar a las instrucciones
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showInstructions && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-no-repeat bg-cover bg-center p-4 md:p-8 overflow-hidden text-slate-100"
+          style={{
+            backgroundImage: `linear-gradient(135deg, rgba(6, 10, 15, 0.97) 0%, rgba(6, 10, 15, 0.94) 100%), url(${fondoLogin})`,
+          }}
+        >
+          {/* Main Wizard Card */}
+          <div className="flex h-full max-h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-cyan-500/30 bg-slate-900/80 shadow-2xl backdrop-blur-xl">
+            
+            {/* Sidebar */}
+            <div className="hidden md:flex w-80 flex-col border-r border-cyan-500/20 bg-slate-950/40 p-6 justify-between">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                    Inducción Fiscal
+                  </h3>
+                  <p className="font-mono text-[10px] text-slate-400">NEXUS DAE</p>
+                </div>
+                
+                <div className="relative pl-8 space-y-8 py-2">
+                  {/* Container for the line to restrict its bounds */}
+                  <div className="absolute left-3.5 top-[14px] bottom-[14px] w-[3px]">
+                    {/* Background Line */}
+                    <div className="absolute inset-0 bg-slate-800 rounded-full" />
+                    
+                    {/* Active Glowing Line */}
+                    <div 
+                      className="absolute top-0 w-full bg-gradient-to-b from-cyan-500 to-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.8)] transition-all duration-500 ease-out rounded-full"
+                      style={{
+                        height: `${((currentStep - 1) / 3) * 100}%`
+                      }}
+                    />
+                  </div>
+                  
+                  {[
+                    { id: 1, name: 'Bienvenida' },
+                    { id: 2, name: '¿Qué es NEXUS?' },
+                    { id: 3, name: 'Cada decisión importa' },
+                    { id: 4, name: 'Tu objetivo' }
+                  ].map((step) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = currentStep > step.id;
+                    return (
+                      <div 
+                        key={step.id} 
+                        className="relative flex items-center gap-4 transition duration-300 animate-welcome-fade"
+                      >
+                        {/* Point/Bullet */}
+                        <div className={`absolute -left-8 flex h-7 w-7 items-center justify-center rounded-full border-2 text-[11px] font-mono font-bold transition-all duration-500 ${
+                          isActive 
+                            ? 'border-cyan-400 bg-slate-950 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-110'
+                            : isCompleted
+                              ? 'border-emerald-400 bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                              : 'border-slate-700 bg-slate-900 text-slate-500'
+                        }`}>
+                          {step.id}
+                        </div>
+                        
+                        {/* Label */}
+                        <span className={`font-mono text-xs transition-colors duration-300 ${
+                          isActive 
+                            ? 'text-cyan-300 font-bold'
+                            : isCompleted
+                              ? 'text-emerald-400'
+                              : 'text-slate-500'
+                        }`}>
+                          {step.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="rounded-lg border border-slate-500/20 bg-slate-900/40 p-3">
+                <p className="font-mono text-[9px] text-slate-400/80 leading-normal">
+                  Este manual de inducción te preparará para asumir el cargo. Sigue los pasos indicados.
+                </p>
+              </div>
+            </div>
+            
+            {/* Main Content Area */}
+            <div className="flex flex-1 flex-col justify-between overflow-hidden bg-slate-900/40">
+              
+              {/* Content viewport */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                
+                {/* Step 1: Bienvenida al Despacho */}
+                {currentStep === 1 && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 animate-stagger-1">
+                      <div className="rounded-lg bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/25">
+                        <FiShield size={26} />
+                      </div>
+                      <div>
+                        <h2 className="font-mono text-2xl font-bold tracking-wide text-slate-50">Bienvenido al Despacho</h2>
+                        <p className="text-sm text-slate-300/80">Dispone de tres horas para revisar su despacho y tomar las primeras decisiones.</p>
+                      </div>
+                    </div>
+                    
+                    {/* Alert Box */}
+                    <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-200 font-semibold animate-stagger-2">
+                      💡 Su despacho es mixto, conoce de diferentes delitos y temáticas.
+                    </div>
+                    
+                    {/* Main description box */}
+                    <div className="rounded-lg border border-cyan-500/30 bg-slate-950/60 p-4 text-base text-slate-100 font-medium leading-relaxed animate-stagger-3">
+                      Acaba de llegar a su oficina. El reloj institucional marca el inicio de su jornada y la acumulación de trabajo ya es evidente.
+                    </div>
+                    
+                    {/* 4 Cards Grid */}
+                    <div className="grid gap-4 sm:grid-cols-2 animate-stagger-4">
+                      <div className="rounded-xl border border-slate-700/60 bg-slate-950/60 p-5 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg">
+                        <div className="flex items-center gap-2 font-semibold text-cyan-300 text-base">
+                          <FiFileText size={18} />
+                          Noticias criminales
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300 leading-normal">Más de 50 noticias criminales pendientes de revisión.</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700/60 bg-slate-950/60 p-5 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg">
+                        <div className="flex items-center gap-2 font-semibold text-cyan-300 text-base">
+                          <FiUsers size={18} />
+                          Correo institucional
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300 leading-normal">Solicitudes y comunicaciones esperando respuesta.</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700/60 bg-slate-950/60 p-5 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg">
+                        <div className="flex items-center gap-2 font-semibold text-cyan-300 text-base">
+                          <FiUsers size={18} />
+                          Víctima en sala
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300 leading-normal">Una víctima está esperando ser atendida personalmente.</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700/60 bg-slate-950/60 p-5 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg">
+                        <div className="flex items-center gap-2 font-semibold text-cyan-300 text-base">
+                          <FiFileText size={18} />
+                          Reporte de investigador
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300 leading-normal">Un investigador reporta un posible caso de criminalidad organizada.</p>
+                      </div>
+                    </div>
+                    
+                    {/* Paragraph */}
+                    <p className="text-sm leading-relaxed text-slate-300 animate-stagger-5">
+                      Su equipo es limitado. No cuenta con asistente, pero tiene asignado un judicante que podrá apoyarlo. El tiempo también es limitado. Y cada decisión tendrá consecuencias.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Step 2: ¿Que es NEXUS? */}
+                {currentStep === 2 && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 animate-stagger-1">
+                      <div className="rounded-lg bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/25">
+                        <FiLink size={26} />
+                      </div>
+                      <div>
+                        <h2 className="font-mono text-2xl font-bold tracking-wide text-slate-50">¿Qué es NEXUS?</h2>
+                        <p className="text-sm text-slate-300/80">Una actividad de simulación interactiva diseñada para fiscales.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="rounded-lg border border-cyan-500/30 bg-slate-950/60 p-4 text-base text-slate-100 font-medium leading-relaxed animate-stagger-2">
+                      NEXUS es una actividad de simulación interactiva en la que usted asume el rol de Fiscal Delegado al frente de un despacho con una carga real de trabajo.
+                    </div>
+                    
+                    <div className="space-y-3 animate-stagger-3">
+                      <h4 className="font-mono text-sm font-bold tracking-wider text-slate-400 uppercase">Durante el juego deberá:</h4>
+                      
+                      {[
+                        'Priorizar investigaciones.',
+                        'Analizar noticias criminales.',
+                        'Determinar qué asuntos son de su competencia.',
+                        'Impulsar actuaciones investigativas.',
+                        'Coordinar actividades con Policía Judicial.',
+                        'Atender víctimas y peticionarios.',
+                        'Gestionar términos y requerimientos.',
+                        'Tomar decisiones estratégicas bajo presión.'
+                      ].map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-950/60 px-5 py-3 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-md"
+                        >
+                          <div className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                          <span className="text-base text-slate-200">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 3: Cada decision importa */}
+                {currentStep === 3 && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 animate-stagger-1">
+                      <div className="rounded-lg bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/25">
+                        <FiZap size={26} />
+                      </div>
+                      <div>
+                        <h2 className="font-mono text-2xl font-bold tracking-wide text-slate-50">Cada decisión cambia la historia</h2>
+                        <p className="text-sm text-slate-300/80">Los casos evolucionan según sus acciones.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="rounded-lg border border-cyan-500/30 bg-slate-950/60 p-4 text-base text-slate-100 font-medium leading-relaxed animate-stagger-2">
+                      En un despacho fiscal no siempre es evidente qué caso requiere atención inmediata. Un asunto aparentemente menor puede convertirse en:
+                    </div>
+                    
+                    <div className="grid gap-4 sm:grid-cols-2 animate-stagger-3">
+                      {[
+                        'Una red de estafa',
+                        'Un caso de corrupción',
+                        'Una estructura criminal organizada',
+                        'Una investigación de alto impacto regional'
+                      ].map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-950/60 px-5 py-4 transition-all duration-300 hover:scale-[1.01] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg text-slate-200 animate-welcome-fade"
+                        >
+                          <span className="text-cyan-400 font-mono text-sm">→</span>
+                          <span className="text-sm font-semibold">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-4 animate-stagger-4">
+                      <h4 className="font-mono text-xs font-bold tracking-wider text-slate-400 uppercase">Por ello, usted deberá decidir:</h4>
+                      
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {[
+                          { text: 'Qué investigar', border: 'border-yellow-500/40', textCol: 'text-yellow-200', bg: 'bg-yellow-500/10', icon: <FiShield size={18} /> },
+                          { text: 'Qué priorizar', border: 'border-blue-500/40', textCol: 'text-blue-200', bg: 'bg-blue-500/10', icon: <FiClock size={18} /> },
+                          { text: 'Qué delegar', border: 'border-emerald-500/40', textCol: 'text-emerald-200', bg: 'bg-emerald-500/10', icon: <FiUsers size={18} /> },
+                          { text: 'Qué remitir', border: 'border-pink-500/40', textCol: 'text-pink-200', bg: 'bg-pink-500/10', icon: <FiFileText size={18} /> },
+                          { text: 'Qué asociar con otros casos.', border: 'border-cyan-500/40', textCol: 'text-cyan-200', bg: 'bg-cyan-500/10', icon: <FiLink size={18} /> },
+                          { text: 'Y qué asuntos no corresponden a su competencia.', border: 'border-orange-500/40', textCol: 'text-orange-200', bg: 'bg-orange-500/10', icon: <FiAlertTriangle size={18} /> }
+                        ].map((badge, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all duration-300 hover:scale-[1.02] hover:brightness-110 shadow-md ${badge.border} ${badge.bg} ${badge.textCol}`}
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950/40 border border-slate-700/50">
+                              {badge.icon}
+                            </div>
+                            <span className="leading-tight">{badge.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 4: Tu objetivo */}
+                {currentStep === 4 && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 animate-stagger-1">
+                      <div className="rounded-lg bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/25">
+                        <FiTarget size={26} />
+                      </div>
+                      <div>
+                        <h2 className="font-mono text-2xl font-bold tracking-wide text-slate-50">Objetivo de NEXUS</h2>
+                        <p className="text-sm text-slate-300/80">Lo que se evalúa en la simulación.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="rounded-lg border border-cyan-500/30 bg-slate-950/60 p-4 text-base text-slate-100 font-medium leading-relaxed animate-stagger-2">
+                      Lograr un equilibrio sostenible entre: legalidad, eficiencia y atención real a víctimas.
+                    </div>
+                    
+                    {/* Grid de 6 items evaluados */}
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-stagger-3">
+                      {[
+                        { title: 'Legalidad', icon: <FiShield size={20} className="text-cyan-400" /> },
+                        { title: 'Eficiencia', icon: <FiZap size={20} className="text-cyan-400" /> },
+                        { title: 'Priorización', icon: <FiTarget size={20} className="text-cyan-400" /> },
+                        { title: 'Atención a víctimas', icon: <FiUsers size={20} className="text-cyan-400" /> },
+                        { title: 'Gestión de recursos', icon: <FiTool size={20} className="text-cyan-400" /> },
+                        { title: 'Resultados investigativos', icon: <FiTrendingUp size={20} className="text-cyan-400" /> }
+                      ].map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          className="flex flex-col items-center justify-center text-center rounded-xl border border-slate-700/60 bg-slate-950/60 p-5 transition-all duration-300 hover:scale-[1.02] hover:border-cyan-500/40 hover:bg-slate-900/60 shadow-lg text-slate-200"
+                        >
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950/40 border border-slate-700/50 mb-3">
+                            {item.icon}
+                          </div>
+                          <span className="text-sm font-bold tracking-wide">{item.title}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Amber warning block */}
+                    <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-4 text-sm text-amber-200 font-semibold text-center italic leading-relaxed animate-stagger-4">
+                      "Porque en un despacho fiscal real, resolver un caso no solo significa tomar la decisión correcta. También significa tomarla en el momento adecuado."
+                    </div>
+
+                    {/* Final Action Box */}
+                    <div className="rounded-lg border border-slate-700 bg-slate-950/70 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 animate-stagger-5 shadow-xl">
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-cyan-300">¡Todo listo para comenzar!</h4>
+                        <p className="text-xs text-slate-300 mt-1 leading-normal">Ingrese al despacho y tome su primer turno.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Bottom Navigation controls */}
+              <div className="flex items-center justify-between border-t border-cyan-500/20 bg-slate-950/40 p-6">
+                <div>
+                  {currentStep > 1 && (
+                    <button
+                      onClick={() => setCurrentStep((curr) => curr - 1)}
+                      className="rounded-lg border border-slate-500/30 bg-slate-900/60 px-5 py-2 font-mono text-xs font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white"
+                    >
+                      ← Anterior
+                    </button>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => {
+                    if (currentStep < 4) {
+                      setCurrentStep((curr) => curr + 1);
+                    } else {
+                      localStorage.setItem(`nexus_first_login_${usuario?.id}`, 'false');
+                      setShowInstructions(false);
+                    }
+                  }}
+                  className={`rounded-lg px-6 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-white shadow-lg transition-all duration-300 ${
+                    currentStep === 4 
+                      ? 'bg-gradient-to-r from-cyan-500 via-cyan-400 to-teal-400 shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:from-cyan-400 hover:to-cyan-300 hover:shadow-cyan-400/80 scale-105 border border-cyan-300/30' 
+                      : 'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 hover:shadow-cyan-500/20'
+                  }`}
+                >
+                  {currentStep < 4 ? 'Siguiente →' : 'Ir a Nexus →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'casos' ? (
+        <CasesSidebarModule
         usuario={usuario}
         logout={logout}
         elapsedSeconds={elapsedSeconds}
@@ -1624,51 +2043,30 @@ function DashboardInvestigator({ token }) {
 
               {activeNodes.map((node) => (
                 (() => {
-                  const metadata = caseMetadataById.get(node.id);
+                  const caseItem = carpetas.find((c) => c.id === node.id);
                   return (
-                <button
-                  key={node.id}
-                  type="button"
-                  onClick={() => onNodeClick(node.id)}
-                  title={`${metadata?.offenseType || 'Caso'} | ${metadata?.caseDateLabel || 'Sin fecha'} | ${metadata?.zone || 'Sin zona'}`}
-                  className={`absolute flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-center text-[10px] font-semibold leading-tight transition ${
-                    (() => {
-                      const group = groupedRegions.find((region) => region.ids.includes(node.id));
-                      const groupColor = group ? group.color : GROUP_COLOR_PALETTE[0];
-                      if (selectedNodeIds.includes(node.id)) {
-                        return 'border-emerald-300 bg-emerald-500/20 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.35)]';
-                      }
-
-                      return 'text-white hover:brightness-110';
-                    })()
-                  }`}
-                  style={{
-                    left: node.x,
-                    top: node.y,
-                    backgroundColor: (() => {
-                      const group = groupedRegions.find((region) => region.ids.includes(node.id));
-                      const groupColor = group ? group.color : GROUP_COLOR_PALETTE[0];
-                      return selectedNodeIds.includes(node.id) ? 'rgba(16, 185, 129, 0.20)' : hexToRgba(groupColor, 0.22);
-                    })(),
-                    borderColor: (() => {
-                      const group = groupedRegions.find((region) => region.ids.includes(node.id));
-                      const groupColor = group ? group.color : GROUP_COLOR_PALETTE[0];
-                      return selectedNodeIds.includes(node.id) ? '#a7f3d0' : hexToRgba(groupColor, 0.55);
-                    })(),
-                    boxShadow: (() => {
-                      const group = groupedRegions.find((region) => region.ids.includes(node.id));
-                      const groupColor = group ? group.color : GROUP_COLOR_PALETTE[0];
-                      return selectedNodeIds.includes(node.id)
-                        ? '0 0 22px rgba(16,185,129,0.35)'
-                        : `0 0 18px ${hexToRgba(groupColor, 0.18)}`;
-                    })(),
-                  }}
-                >
-                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-900 bg-cyan-400/90 text-[9px] font-bold text-slate-900">
-                    {metadata?.offenseTag || 'C'}
-                  </span>
-                  <span className="line-clamp-3 px-1">{node.label}</span>
-                </button>
+                    <button
+                      key={node.id}
+                      type="button"
+                      onClick={() => onNodeClick(node.id)}
+                      title={`${caseItem?.tipo_delito || 'Caso'} | Radicado: ${caseItem?.nombre?.replace("Caso ", "")}`}
+                      className={`absolute flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border text-center text-[10px] font-semibold leading-tight transition p-2 ${
+                        selectedNodeIds.includes(node.id)
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.5)]'
+                          : 'border-cyan-500/30 bg-slate-950/90 text-white hover:border-cyan-400 hover:brightness-110 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
+                      }`}
+                      style={{
+                        left: node.x,
+                        top: node.y,
+                      }}
+                    >
+                      <span className="font-mono text-[9px] font-bold text-cyan-300">
+                        {caseItem?.nombre?.replace("Caso ", "")}
+                      </span>
+                      <span className="text-[8px] text-slate-300 line-clamp-2 capitalize mt-0.5">
+                        {caseItem?.tipo_delito || 'Caso'}
+                      </span>
+                    </button>
                   );
                 })()
               ))}
@@ -2168,7 +2566,9 @@ function DashboardInvestigator({ token }) {
           </div>
         </div>
       )}
-    </>)
+    </>
+    )}
+    </>
   );
 }
 

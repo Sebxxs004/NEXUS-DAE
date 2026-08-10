@@ -42,3 +42,91 @@ body {
 .animate-slide-in-down {
   animation: slideInDown 0.8s ease-out forwards;
 }
+
+/* Animation Keyframes for Welcome Screen */
+@keyframes welcomeFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes welcomeZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes welcomeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-welcome-fade {
+  animation: welcomeFadeIn 1s ease-out forwards;
+}
+
+.animate-welcome-zoom {
+  animation: welcomeZoomIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.2s;
+}
+
+.animate-welcome-slide1 {
+  animation: welcomeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.4s;
+}
+
+.animate-welcome-slide2 {
+  animation: welcomeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.6s;
+}
+
+/* Staggered slide up animation */
+@keyframes slideUpStagger {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-stagger-1 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.05s;
+}
+.animate-stagger-2 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.12s;
+}
+.animate-stagger-3 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.20s;
+}
+.animate-stagger-4 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.28s;
+}
+.animate-stagger-5 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.36s;
+}
+.animate-stagger-6 {
+  animation: slideUpStagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.44s;
+}

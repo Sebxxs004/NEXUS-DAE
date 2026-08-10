@@ -55,60 +55,35 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
-// Crear carpeta
+
+// Crear carpeta para la importación
 router.post('/', verificarToken, async (req, res) => {
   try {
-    const {
-      nombre,
-      descripcion,
-      imagen_url,
-      usuario_id,
-      modalidad,
-      patrones,
-      tipo_delito,
-      fecha_caso,
-      victima,
-      victimario,
-      zona_territorial,
-      actores_involucrados,
-      es_autor_intelectual,
-      es_zona_operacion,
-    } = req.body;
+    const { nombre, tipo_delito, imagen_url, usuario_id } = req.body;
 
     if (!nombre || !usuario_id) {
       return res.status(400).json({ error: 'Nombre y usuario_id requeridos' });
     }
 
+    const descripcion = `Caso registrado automáticamente a partir de la imagen importada.`;
+
     const result = await pool.query(
       `INSERT INTO carpetas (
-        nombre, descripcion, imagen_url, modalidad, patrones, created_by,
-        tipo_delito, fecha_caso, victima, victimario, zona_territorial, actores_involucrados,
-        es_autor_intelectual, es_zona_operacion
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING id, nombre, descripcion, imagen_url, modalidad, patrones,
-                tipo_delito, fecha_caso, victima, victimario, zona_territorial, actores_involucrados,
-                es_autor_intelectual, es_zona_operacion, created_at`,
+        nombre, descripcion, imagen_url, tipo_delito, created_by
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING *`,
       [
         nombre,
-        descripcion || null,
+        descripcion,
         imagen_url || null,
-        modalidad || null,
-        patrones || null,
-        usuario_id,
         tipo_delito || null,
-        fecha_caso || null,
-        victima || null,
-        victimario || null,
-        zona_territorial || null,
-        actores_involucrados || null,
-        Boolean(es_autor_intelectual),
-        Boolean(es_zona_operacion),
+        usuario_id
       ]
     );
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    console.error('Error creando caso:', error);
     res.status(500).json({ error: 'Error en servidor' });
   }
 });
@@ -128,72 +103,6 @@ router.get('/:id', verificarToken, async (req, res) => {
   }
 });
 
-// Actualizar carpeta
-router.put('/:id', verificarToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      nombre,
-      descripcion,
-      imagen_url,
-      modalidad,
-      patrones,
-      tipo_delito,
-      fecha_caso,
-      victima,
-      victimario,
-      zona_territorial,
-      actores_involucrados,
-      es_autor_intelectual,
-      es_zona_operacion,
-    } = req.body;
-
-    const result = await pool.query(
-      `UPDATE carpetas
-       SET nombre = $1,
-           descripcion = $2,
-           imagen_url = $3,
-           modalidad = $4,
-           patrones = $5,
-           tipo_delito = $6,
-           fecha_caso = $7,
-           victima = $8,
-           victimario = $9,
-           zona_territorial = $10,
-           actores_involucrados = $11,
-           es_autor_intelectual = $12,
-           es_zona_operacion = $13,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $14
-       RETURNING *`,
-      [
-        nombre,
-        descripcion,
-        imagen_url,
-        modalidad,
-        patrones,
-        tipo_delito || null,
-        fecha_caso || null,
-        victima || null,
-        victimario || null,
-        zona_territorial || null,
-        actores_involucrados || null,
-        Boolean(es_autor_intelectual),
-        Boolean(es_zona_operacion),
-        id,
-      ]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Carpeta no encontrada' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error en servidor' });
-  }
-});
 
 // Eliminar carpeta
 router.delete('/:id', verificarToken, async (req, res) => {

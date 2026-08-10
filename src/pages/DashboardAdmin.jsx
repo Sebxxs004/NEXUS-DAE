@@ -15,8 +15,6 @@ import {
   FiX,
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
-import AssociationGroupsPage from './AssociationGroupsPage';
-import InvestigatorFeedbackPage from './InvestigatorFeedbackPage';
 import InvestigatorsManagementPage from './InvestigatorsManagementPage';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
@@ -71,6 +69,12 @@ function DashboardAdmin() {
   });
   const [connectionFeedback, setConnectionFeedback] = useState(null);
   const [activeSection, setActiveSection] = useState('casos');
+  const [uploadProgress, setUploadProgress] = useState({
+    uploading: false,
+    total: 0,
+    current: 0,
+    currentName: '',
+  });
 
   useEffect(() => {
     cargarCarpetas();
@@ -145,6 +149,83 @@ function DashboardAdmin() {
       setError('No fue posible cargar los casos.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBulkUpload = async (filesList) => {
+    const files = Array.from(filesList).filter((file) => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      setError('No se seleccionaron archivos de imagen válidos.');
+      return;
+    }
+
+    setUploadProgress({
+      uploading: true,
+      total: files.length,
+      current: 0,
+      currentName: '',
+    });
+
+    const fileToBase64 = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (err) => reject(err);
+      });
+
+    let successCount = 0;
+
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i];
+      const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      
+      const underscoreIdx = nameWithoutExt.indexOf('_');
+      let numeroRadicado = nameWithoutExt;
+      let delito = 'No especificado';
+
+      if (underscoreIdx !== -1) {
+        numeroRadicado = nameWithoutExt.substring(0, underscoreIdx);
+        delito = nameWithoutExt.substring(underscoreIdx + 1);
+      }
+
+      setUploadProgress((prev) => ({
+        ...prev,
+        current: i + 1,
+        currentName: file.name,
+      }));
+
+      try {
+        const base64Image = await fileToBase64(file);
+        await axios.post(
+          `${API_URL}/carpetas`,
+          {
+            nombre: `Caso ${numeroRadicado}`,
+            tipo_delito: delito,
+            imagen_url: base64Image,
+            usuario_id: usuario.id,
+          },
+          {
+            headers: authHeaders,
+          }
+        );
+        successCount += 1;
+      } catch (err) {
+        console.error(`Error subiendo archivo ${file.name}:`, err);
+      }
+    }
+
+    setUploadProgress({
+      uploading: false,
+      total: 0,
+      current: 0,
+      currentName: '',
+    });
+
+    if (successCount > 0) {
+      await cargarCarpetas();
+    } else {
+      setError('No se pudo subir ninguna imagen de caso.');
     }
   };
 
@@ -484,109 +565,7 @@ function DashboardAdmin() {
     document.body.removeChild(link);
   };
 
-  const cargarConexiones = async (caseId) => {
-    try {
-      const response = await axios.get(`${API_URL}/conexiones/carpeta/${caseId}`, {
-        headers: authHeaders,
-      });
-      setExistingConnections(response.data);
-    } catch (requestError) {
-      console.error('Error cargando conexiones:', requestError);
-      setExistingConnections([]);
-    }
-  };
 
-  const openConnectionModal = async (carpeta) => {
-    setConnectionSourceCase(carpeta);
-    setSelectedCaseId(carpeta.id);
-    setConnectionData({ carpeta_destino_id: '', tipo: 'modalidad', razonamiento: '' });
-    setConnectionFeedback(null);
-    setIsConnectionModalOpen(true);
-    await cargarConexiones(carpeta.id);
-  };
-
-  const closeConnectionModal = () => {
-    setIsConnectionModalOpen(false);
-    setConnectionSourceCase(null);
-    setConnectionFeedback(null);
-    setExistingConnections([]);
-    setConnectionData({ carpeta_destino_id: '', tipo: 'modalidad', razonamiento: '' });
-  };
-
-  const crearConexion = async () => {
-    if (!connectionData.carpeta_destino_id) {
-      setConnectionFeedback({ valido: false, razon: 'Selecciona un caso destino para conectar.' });
-      return;
-    }
-
-    setConnectionSaving(true);
-    setConnectionFeedback(null);
-
-    try {
-      const response = await axios.post(
-        `${API_URL}/conexiones`,
-        {
-          carpeta_origen_id: selectedCaseId,
-          carpeta_destino_id: connectionData.carpeta_destino_id,
-          tipo: connectionData.tipo,
-          razonamiento: connectionData.razonamiento,
-          usuario_id: usuario.id,
-        },
-        {
-          headers: authHeaders,
-        }
-      );
-
-      setConnectionFeedback({
-        valido: true,
-        razon: response.data.razon || 'Conexión creada correctamente.',
-      });
-      await cargarConexiones(selectedCaseId);
-    } catch (requestError) {
-      setConnectionFeedback({
-        valido: false,
-        razon:
-          requestError.response?.data?.razon ||
-          requestError.response?.data?.error ||
-          'No se pudo crear la conexión.',
-      });
-    } finally {
-      setConnectionSaving(false);
-    }
-  };
-
-  const eliminarConexion = async (connectionId) => {
-    try {
-      await axios.delete(`${API_URL}/conexiones/${connectionId}`, {
-        headers: authHeaders,
-      });
-      await cargarConexiones(selectedCaseId);
-    } catch (requestError) {
-      console.error('Error eliminando conexión:', requestError);
-      setError('No se pudo eliminar la conexión.');
-    }
-  };
-
-  const destinationOptions = carpetas.filter((carpeta) => carpeta.id !== selectedCaseId);
-
-  if (activeSection === 'grupos') {
-    return (
-      <AssociationGroupsPage
-        token={token}
-        usuario={usuario}
-        onBack={() => setActiveSection('casos')}
-      />
-    );
-  }
-
-  if (activeSection === 'feedback') {
-    return (
-      <InvestigatorFeedbackPage
-        token={token}
-        onBack={() => setActiveSection('casos')}
-      />
-    );
-  }
 
   if (activeSection === 'investigadores') {
     return (
@@ -606,18 +585,7 @@ function DashboardAdmin() {
             <p className="font-mono text-xs text-cyan-300/70">Bienvenido {usuario?.nombre}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveSection('grupos')}
-              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 font-mono text-sm text-cyan-200 transition hover:bg-cyan-500/20"
-            >
-              Grupos de asociación
-            </button>
-            <button
-              onClick={() => setActiveSection('feedback')}
-              className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-2 font-mono text-sm text-amber-200 transition hover:bg-amber-500/20"
-            >
-              Feedback fiscal
-            </button>
+
             <button
               onClick={() => setActiveSection('investigadores')}
               className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 font-mono text-sm text-emerald-200 transition hover:bg-emerald-500/20"
@@ -645,15 +613,66 @@ function DashboardAdmin() {
                 <FiSettings size={16} />
                 Configuración
               </button>
-              <button
-                onClick={openCreateModal}
-                className="flex items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 font-mono text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-              >
-                <FiPlus size={16} />
-                Nuevo Caso
-              </button>
+
             </div>
           </div>
+
+        {/* Bulk Upload Section */}
+        <div className="mb-8 rounded-xl border border-dashed border-cyan-500/30 bg-slate-950/40 p-8 text-center backdrop-blur-sm">
+          <div 
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files) handleBulkUpload(e.dataTransfer.files);
+            }}
+            className="flex flex-col items-center justify-center space-y-4"
+          >
+            <div className="rounded-full bg-cyan-500/10 p-4 text-cyan-400">
+              <FiFolder size={32} />
+            </div>
+            <div>
+              <h3 className="font-mono text-lg font-semibold text-slate-100">Carga Masiva de Casos (Nodos)</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Arrastra tus imágenes aquí o haz clic en los botones de abajo.
+              </p>
+              <p className="mt-1 font-mono text-xs text-cyan-300/60">
+                Formato requerido: <span className="underline">numeroRadicado_delito.extension</span> (Ej: 123456_homicidio.png)
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 font-mono text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 hover:text-white">
+                <FiPlus size={16} />
+                Seleccionar Imágenes
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    if (e.target.files) handleBulkUpload(e.target.files);
+                  }}
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-500/30 bg-slate-900/60 px-4 py-2 font-mono text-sm font-semibold text-slate-200 transition hover:bg-slate-700/40 hover:text-white">
+                <FiFolder size={16} />
+                Seleccionar Carpeta
+                <input 
+                  type="file" 
+                  webkitdirectory="" 
+                  directory="" 
+                  multiple 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    if (e.target.files) handleBulkUpload(e.target.files);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
 
         {error && (
           <div className="mb-6 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-300">
@@ -673,264 +692,31 @@ function DashboardAdmin() {
                 {carpeta.imagen_url && (
                   <img src={carpeta.imagen_url} alt={carpeta.nombre} className="mb-4 h-40 w-full rounded-lg object-cover" />
                 )}
-                <h3 className="font-mono text-lg font-semibold text-slate-100">{carpeta.nombre}</h3>
-                <p className="mt-2 text-sm text-slate-300/70">{carpeta.descripcion}</p>
-                <div className="mt-3" />
-                <div className="mt-4 space-y-3">
-                  <span className="block text-xs text-cyan-300/60">{carpeta.cantidad_documentos} documentos</span>
-                  <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                    <button
-                      onClick={() => openViewerModal(carpeta)}
-                      className="flex w-full min-w-0 items-center justify-center gap-1 rounded border border-green-500/20 px-2 py-1 font-mono text-xs text-green-200 transition hover:bg-green-500/10"
-                    >
-                      <FiEye size={14} />
-                      Panorama
-                    </button>
-                    <button
-                      onClick={() => openEditModal(carpeta)}
-                      className="flex w-full min-w-0 items-center justify-center gap-1 rounded border border-cyan-500/20 px-2 py-1 font-mono text-xs text-cyan-200 transition hover:bg-cyan-500/10"
-                    >
-                      <FiEdit2 size={14} />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCase(carpeta.id)}
-                      disabled={deletingCaseId === carpeta.id}
-                      className="flex w-full min-w-0 items-center justify-center gap-1 rounded border border-red-500/30 px-2 py-1 font-mono text-xs text-red-300 transition disabled:opacity-50 hover:bg-red-500/10"
-                    >
-                      <FiTrash2 size={14} />
-                      {deletingCaseId === carpeta.id ? 'Eliminando...' : 'Eliminar'}
-                    </button>
-                  </div>
+                <h3 className="font-mono text-lg font-semibold text-slate-100">
+                  Radicado: {carpeta.nombre.replace("Caso ", "")}
+                </h3>
+                <p className="mt-1 text-sm font-mono text-cyan-300/80 capitalize">
+                  Delito: {carpeta.tipo_delito || 'No especificado'}
+                </p>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    onClick={() => openViewerModal(carpeta)}
+                    className="flex items-center gap-1 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-green-200 transition hover:bg-green-500/20 hover:text-white"
+                  >
+                    <FiEye size={12} />
+                    Panorama
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCase(carpeta.id)}
+                    disabled={deletingCaseId === carpeta.id}
+                    className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-red-300 transition disabled:opacity-50 hover:bg-red-500/20 hover:text-white"
+                  >
+                    <FiTrash2 size={12} />
+                    {deletingCaseId === carpeta.id ? '...' : 'Eliminar'}
+                  </button>
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8">
-            <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-orange-500/40 bg-slate-800/95 p-6 shadow-[0_0_40px_rgba(255,107,0,0.25)] backdrop-blur-lg">
-              <div className="mb-5 flex items-center justify-between">
-                <h3 className="font-mono text-lg font-semibold tracking-[0.2em] text-orange-200">
-                  {isEditMode ? 'MODIFICAR CASO' : 'CREAR CASO'}
-                </h3>
-                <button
-                  onClick={closeModal}
-                  className="flex items-center gap-1 rounded border border-slate-500/30 px-3 py-1 text-sm text-slate-300 hover:bg-slate-700/40"
-                >
-                  <FiX size={16} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmitCase} className="space-y-5">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                    Nombre del Caso
-                  </label>
-                  <input
-                    type="text"
-                    value={modalData.nombre}
-                    onChange={(event) => setModalData((current) => ({ ...current, nombre: event.target.value }))}
-                    required
-                    className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                    Descripción
-                  </label>
-                  <textarea
-                    value={modalData.descripcion}
-                    onChange={(event) => setModalData((current) => ({ ...current, descripcion: event.target.value }))}
-                    rows="3"
-                    className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Tipo de delito
-                    </label>
-                    <input
-                      type="text"
-                      value={modalData.tipo_delito}
-                      onChange={(event) => setModalData((current) => ({ ...current, tipo_delito: event.target.value }))}
-                      placeholder="Ej: Concierto para delinquir"
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Fecha del caso
-                    </label>
-                    <input
-                      type="date"
-                      value={modalData.fecha_caso}
-                      onChange={(event) => setModalData((current) => ({ ...current, fecha_caso: event.target.value }))}
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Victima
-                    </label>
-                    <input
-                      type="text"
-                      value={modalData.victima}
-                      onChange={(event) => setModalData((current) => ({ ...current, victima: event.target.value }))}
-                      placeholder="Persona natural o juridica"
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Victimario
-                    </label>
-                    <input
-                      type="text"
-                      value={modalData.victimario}
-                      onChange={(event) => setModalData((current) => ({ ...current, victimario: event.target.value }))}
-                      placeholder="Indiciado, imputado o estructura"
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Zona territorial
-                    </label>
-                    <input
-                      type="text"
-                      value={modalData.zona_territorial}
-                      onChange={(event) => setModalData((current) => ({ ...current, zona_territorial: event.target.value }))}
-                      placeholder="Municipio, seccional o region"
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                      Actores involucrados
-                    </label>
-                    <input
-                      type="text"
-                      value={modalData.actores_involucrados}
-                      onChange={(event) => setModalData((current) => ({ ...current, actores_involucrados: event.target.value }))}
-                      placeholder="Separados por coma, ej: FGN, CTI, SIJIN"
-                      className="mt-2 w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                    Imagen del Caso (arrastrar o pegar)
-                  </label>
-                  <div
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={handleDropImage}
-                    onPaste={handlePasteImage}
-                    tabIndex={0}
-                    className="mt-2 rounded-lg border-2 border-dashed border-orange-400/40 bg-slate-900/70 p-4 outline-none focus:border-orange-300"
-                  >
-                    <p className="mb-3 text-xs text-slate-300/80">Arrastra una imagen aquí o pega desde el portapapeles.</p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => handleImageFile(event.target.files?.[0])}
-                      className="mb-3 w-full text-xs text-slate-300"
-                    />
-                    <input
-                      type="url"
-                      value={modalData.imagen_url}
-                      onChange={(event) => setModalData((current) => ({ ...current, imagen_url: event.target.value }))}
-                      placeholder="O pega una URL de imagen"
-                      className="w-full rounded-lg border border-orange-400/30 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none focus:border-orange-300"
-                    />
-                    {modalData.imagen_url && (
-                      <img src={modalData.imagen_url} alt="Preview" className="mt-4 h-44 w-full rounded-lg object-cover" />
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-cyan-500/20 bg-slate-900/70 p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h4 className="font-mono text-sm font-semibold tracking-[0.2em] text-cyan-200">DOCUMENTOS PDF</h4>
-                    <button
-                      type="button"
-                      onClick={addDocumentField}
-                      className="flex items-center gap-1 rounded border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10"
-                    >
-                      <FiPlus size={14} />
-                      Agregar Documento
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {modalData.documentos.map((doc, index) => (
-                      <div key={`${index}-${doc.id || 'nuevo'}`} className="rounded-lg border border-cyan-500/20 bg-slate-950/60 p-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Documento {index + 1}</p>
-                          <button
-                            type="button"
-                            onClick={() => removeDocumentField(index)}
-                            className="flex items-center gap-1 rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
-                          >
-                            <FiMinus size={14} />
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={doc.nombre}
-                          onChange={(event) => updateDocumentField(index, 'nombre', event.target.value)}
-                          placeholder="Nombre del documento"
-                          className="mb-2 w-full rounded-lg border border-cyan-500/20 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-300"
-                        />
-                        <textarea
-                          value={doc.descripcion}
-                          onChange={(event) => updateDocumentField(index, 'descripcion', event.target.value)}
-                          rows="2"
-                          placeholder="Descripción breve"
-                          className="mb-2 w-full rounded-lg border border-cyan-500/20 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-300"
-                        />
-                        <div
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={(event) => handleDropDocument(index, event)}
-                          className="mb-2 rounded-lg border-2 border-dashed border-cyan-500/30 bg-slate-900/60 p-3"
-                        >
-                          <p className="mb-2 text-xs text-slate-300/80">Arrastra un archivo PDF</p>
-                          <input
-                            type="file"
-                            accept=".pdf,application/pdf"
-                            onChange={(event) => handleDocumentFile(index, event.target.files?.[0])}
-                            className="w-full text-xs text-slate-300"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex items-center gap-2 rounded-lg border border-slate-500/30 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/40"
-                  >
-                    <FiX size={16} />
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingCase}
-                    className="rounded-lg border border-orange-400/40 bg-orange-500/20 px-4 py-2 font-mono text-sm font-semibold text-orange-100 transition disabled:opacity-60 hover:bg-orange-500/30"
-                  >
-                    {savingCase ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Crear Caso'}
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         )}
 
@@ -939,8 +725,12 @@ function DashboardAdmin() {
             <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-cyan-500/40 bg-slate-800/95 p-8 shadow-[0_0_40px_rgba(0,200,255,0.25)] backdrop-blur-lg">
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <h2 className="font-mono text-2xl font-semibold tracking-[0.2em] text-cyan-200">{caseViewData.nombre}</h2>
-                  <p className="mt-2 text-slate-300">{caseViewData.descripcion}</p>
+                  <h2 className="font-mono text-2xl font-semibold tracking-[0.2em] text-cyan-200">
+                    Radicado: {caseViewData.nombre.replace("Caso ", "")}
+                  </h2>
+                  <p className="mt-2 text-slate-300 font-mono text-sm capitalize">
+                    Delito: {caseViewData.tipo_delito || 'No especificado'}
+                  </p>
                 </div>
                 <button
                   onClick={closeViewerModal}
@@ -1038,139 +828,7 @@ function DashboardAdmin() {
           </div>
         )}
 
-        {isConnectionModalOpen && connectionSourceCase && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8">
-            <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-blue-500/40 bg-slate-800/95 p-6 shadow-[0_0_40px_rgba(59,130,246,0.25)] backdrop-blur-lg">
-              <div className="mb-5 flex items-center justify-between">
-                <h3 className="font-mono text-lg font-semibold tracking-[0.2em] text-blue-200">CONEXIONES DEL CASO</h3>
-                <button
-                  onClick={closeConnectionModal}
-                  className="flex items-center gap-1 rounded border border-slate-500/30 px-3 py-1 text-sm text-slate-300 hover:bg-slate-700/40"
-                >
-                  <FiX size={16} />
-                </button>
-              </div>
 
-              <div className="mb-4 rounded-lg border border-blue-500/20 bg-slate-900/60 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-blue-300">Caso base</p>
-                <p className="mt-1 font-mono text-sm text-slate-100">{connectionSourceCase.nombre}</p>
-                <p className="mt-1 text-xs text-slate-400">{connectionSourceCase.descripcion}</p>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border border-blue-500/20 bg-slate-900/60 p-4">
-                  <h4 className="mb-3 font-mono text-sm font-semibold text-blue-200">Nueva conexión</h4>
-
-                  <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-slate-300">Caso destino</label>
-                  <select
-                    value={connectionData.carpeta_destino_id}
-                    onChange={(event) =>
-                      setConnectionData((current) => ({
-                        ...current,
-                        carpeta_destino_id: event.target.value,
-                      }))
-                    }
-                    className="mb-3 w-full rounded-lg border border-blue-500/20 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none"
-                  >
-                    <option value="">Selecciona un caso</option>
-                    {destinationOptions.map((caseItem) => (
-                      <option key={caseItem.id} value={caseItem.id}>
-                        {caseItem.nombre}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-slate-300">Tipo de conexión</label>
-                  <select
-                    value={connectionData.tipo}
-                    onChange={(event) =>
-                      setConnectionData((current) => ({
-                        ...current,
-                        tipo: event.target.value,
-                      }))
-                    }
-                    className="mb-3 w-full rounded-lg border border-blue-500/20 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none"
-                  >
-                    <option value="modalidad">Modalidad</option>
-                    <option value="patrones">Patrones</option>
-                  </select>
-
-                  <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-slate-300">Justificación</label>
-                  <textarea
-                    value={connectionData.razonamiento}
-                    onChange={(event) =>
-                      setConnectionData((current) => ({
-                        ...current,
-                        razonamiento: event.target.value,
-                      }))
-                    }
-                    rows="3"
-                    placeholder="Explica por qué esta conexión es válida"
-                    className="mb-3 w-full rounded-lg border border-blue-500/20 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none"
-                  />
-
-                  <button
-                    onClick={crearConexion}
-                    disabled={connectionSaving}
-                    className="w-full rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 font-mono text-sm font-semibold text-blue-100 transition disabled:opacity-60 hover:bg-blue-500/30"
-                  >
-                    {connectionSaving ? 'Validando y conectando...' : 'Crear conexión'}
-                  </button>
-
-                  {connectionFeedback && (
-                    <div
-                      className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
-                        connectionFeedback.valido
-                          ? 'border-green-500/30 bg-green-500/10 text-green-200'
-                          : 'border-red-500/30 bg-red-500/10 text-red-200'
-                      }`}
-                    >
-                      {connectionFeedback.valido ? 'Conectado' : 'No válido'}: {connectionFeedback.razon}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-blue-500/20 bg-slate-900/60 p-4">
-                  <h4 className="mb-3 font-mono text-sm font-semibold text-blue-200">Conexiones existentes</h4>
-
-                  {existingConnections.length === 0 ? (
-                    <p className="text-sm text-slate-400">Este caso no tiene conexiones todavía.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {existingConnections.map((connection) => {
-                        const otroCaso =
-                          connection.carpeta_origen_id === selectedCaseId
-                            ? connection.caso_destino
-                            : connection.caso_origen;
-
-                        return (
-                          <div
-                            key={connection.id}
-                            className="rounded-lg border border-slate-500/20 bg-slate-950/60 p-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-mono text-xs text-slate-100">{otroCaso}</p>
-                                <p className="mt-1 text-xs text-blue-300/80">Tipo: {connection.tipo}</p>
-                                <p className="mt-1 text-xs text-slate-400">{connection.razonamiento}</p>
-                              </div>
-                              <button
-                                onClick={() => eliminarConexion(connection.id)}
-                                className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
-                              >
-                                <FiTrash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {isConfigModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8">
@@ -1214,6 +872,43 @@ function DashboardAdmin() {
             </div>
           </div>
         )}
+
+      {/* Uploading Progress Overlay */}
+      {uploadProgress.uploading && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-cyan-500/30 bg-slate-900/80 p-8 text-center shadow-2xl">
+            <div className="mb-4 flex justify-center">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+            </div>
+            
+            <h3 className="font-mono text-lg font-semibold tracking-wider text-slate-100">
+              IMPORTANDO CASOS...
+            </h3>
+            
+            <p className="mt-2 text-sm text-slate-400">
+              Procesando {uploadProgress.current} de {uploadProgress.total}
+            </p>
+            
+            <p className="mt-1 truncate font-mono text-xs text-cyan-300">
+              {uploadProgress.currentName}
+            </p>
+            
+            {/* Progress Bar */}
+            <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-950">
+              <div 
+                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                style={{
+                  width: `${(uploadProgress.current / uploadProgress.total) * 100}%`
+                }}
+              />
+            </div>
+            
+            <p className="mt-2 text-right font-mono text-xs text-cyan-300/80">
+              {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+            </p>
+          </div>
+        </div>
+      )}
       </main>
     </div>
   );
