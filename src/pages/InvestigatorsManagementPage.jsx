@@ -152,13 +152,35 @@ function InvestigatorsManagementPage({ token, onBack }) {
     }
   };
 
+  const handleResetFirstLogin = async (investigator) => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.patch(
+        `${API_URL}/admin/investigadores/${investigator.id}/reset-first-login`,
+        {},
+        { headers: authHeaders }
+      );
+
+      setSuccess(`Se restableció el primer ingreso de ${investigator.nombre}. Al iniciar sesión, verá la inducción de nuevo.`);
+      await loadInvestigators();
+    } catch (requestError) {
+      console.error('Error reseteando primer ingreso:', requestError);
+      setError(requestError.response?.data?.error || 'No fue posible resetear el primer ingreso.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-investigation-bg text-slate-100">
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">GESTION DE FISCALES</h1>
-            <p className="font-mono text-xs text-cyan-300/70">Crear cuentas, cambiar contrasena y reabrir la prueba</p>
+            <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">GESTION DE USUARIOS</h1>
+            <p className="font-mono text-xs text-cyan-300/70">Administrar cuentas, contraseñas, pruebas e inducciones</p>
           </div>
           <button
             type="button"
@@ -174,8 +196,8 @@ function InvestigatorsManagementPage({ token, onBack }) {
       <main className="p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-mono text-xl font-semibold tracking-[0.15em] text-slate-100">Fiscales</h2>
-            <p className="mt-1 text-sm text-slate-400">Desde aqui puedes administrar acceso y estado de la prueba.</p>
+            <h2 className="font-mono text-xl font-semibold tracking-[0.15em] text-slate-100">Usuarios del Sistema</h2>
+            <p className="mt-1 text-sm text-slate-400">Administra cuentas de administradores e investigadores, y controla sus inducciones.</p>
           </div>
           <button
             type="button"
@@ -200,72 +222,120 @@ function InvestigatorsManagementPage({ token, onBack }) {
         )}
 
         {loading ? (
-          <div className="font-mono text-cyan-300">Cargando fiscales...</div>
+          <div className="font-mono text-cyan-300">Cargando usuarios...</div>
         ) : investigators.length === 0 ? (
           <div className="rounded-lg border border-slate-500/20 bg-slate-900/60 px-5 py-4 text-sm text-slate-300">
-            No hay fiscales registrados.
+            No hay usuarios registrados.
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {investigators.map((investigator) => (
-              <div key={investigator.id} className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-mono text-lg text-slate-100">{investigator.nombre}</p>
-                    <p className="mt-1 text-xs text-slate-400">{investigator.email}</p>
+            {investigators.map((investigator) => {
+              const isAdmin = investigator.rol === 'admin';
+              return (
+                <div 
+                  key={investigator.id} 
+                  className={`rounded-xl p-4 transition-all duration-300 ${
+                    isAdmin 
+                      ? 'border border-purple-500/30 bg-purple-950/20 shadow-[0_0_15px_rgba(168,85,247,0.05)]' 
+                      : 'border border-cyan-500/20 bg-slate-950/70'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-lg text-slate-100">{investigator.nombre}</p>
+                      <p className="mt-1 text-xs text-slate-400">{investigator.email}</p>
+                    </div>
+                    <span
+                      className={`rounded border px-2 py-1 text-[11px] font-semibold ${
+                        isAdmin
+                          ? 'border-purple-500/30 bg-purple-500/10 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                          : investigator.feedback_id
+                            ? investigator.feedback_resuelto
+                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                            : 'border-slate-500/30 bg-slate-900/70 text-slate-300'
+                      }`}
+                    >
+                      {isAdmin ? 'Administrador' : investigator.feedback_id ? (investigator.feedback_resuelto ? 'Resuelto' : 'Desbloqueado') : 'Sin prueba'}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded border px-2 py-1 text-[11px] font-semibold ${
-                      investigator.feedback_id
-                        ? investigator.feedback_resuelto
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                          : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                        : 'border-slate-500/30 bg-slate-900/70 text-slate-300'
-                    }`}
-                  >
-                    {investigator.feedback_id ? (investigator.feedback_resuelto ? 'Resuelto' : 'Desbloqueado') : 'Sin prueba'}
-                  </span>
-                </div>
 
-                <div className="mt-4 space-y-2 rounded-lg border border-slate-500/20 bg-slate-900/60 p-3 text-xs text-slate-300">
-                  <p className="flex items-center gap-2">
-                    <FiUsers size={13} />
-                    Estado: {investigator.activo ? 'Activo' : 'Inactivo'}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <FiShield size={13} />
-                    Prueba: {investigator.feedback_id ? `Puntaje ${investigator.feedback_puntaje}%` : 'Aun no presentada'}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <FiRefreshCw size={13} />
-                    Esperadas: {investigator.feedback_expected_total || 0} | Trazadas: {investigator.feedback_user_total || 0}
-                  </p>
-                </div>
+                  {isAdmin ? (
+                    <div className="mt-4 space-y-2 rounded-lg border border-purple-500/10 bg-purple-950/10 p-3 text-xs text-purple-300/80">
+                      <p className="flex items-center gap-2">
+                        <FiUsers size={13} className="text-purple-400" />
+                        Rol: Administrador del Sistema
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiShield size={13} className="text-purple-400" />
+                        Acceso completo a la creación y edición de casos
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-2 rounded-lg border border-slate-500/20 bg-slate-900/60 p-3 text-xs text-slate-300">
+                      <p className="flex items-center gap-2">
+                        <FiUsers size={13} />
+                        Estado: {investigator.activo ? 'Activo' : 'Inactivo'}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiShield size={13} />
+                        Prueba: {investigator.feedback_id ? `Puntaje ${investigator.feedback_puntaje}%` : 'Aun no presentada'}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiRefreshCw size={13} />
+                        Esperadas: {investigator.feedback_expected_total || 0} | Trazadas: {investigator.feedback_user_total || 0}
+                      </p>
+                    </div>
+                  )}
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openPasswordModal(investigator)}
-                    className="flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-500/20"
-                  >
-                    <FiLock size={14} />
-                    Cambiar contrasena
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleResolved(investigator)}
-                    disabled={!investigator.feedback_id || saving}
-                    className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50"
-                  >
-                    {investigator.feedback_id
-                      ? investigator.feedback_resuelto
-                        ? 'Reabrir prueba'
-                        : 'Marcar resuelto'
-                      : 'Sin feedback'}
-                  </button>
+                  <div className="mt-4 flex flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openPasswordModal(investigator)}
+                        className="flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-500/20"
+                      >
+                        <FiLock size={14} />
+                        Contraseña
+                      </button>
+                      {isAdmin ? (
+                        <div className="flex items-center justify-center text-xs text-purple-300/60 border border-purple-500/20 bg-purple-950/10 rounded-lg">
+                          No requiere pruebas
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleResolved(investigator)}
+                          disabled={!investigator.feedback_id || saving}
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50"
+                        >
+                          {investigator.feedback_id
+                            ? investigator.feedback_resuelto
+                              ? 'Reabrir prueba'
+                              : 'Marcar resuelto'
+                            : 'Sin feedback'}
+                        </button>
+                      )}
+                    </div>
+                    {!isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetFirstLogin(investigator)}
+                        disabled={saving}
+                        className={`w-full flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+                          investigator.primera_vez
+                            ? 'border-slate-500/30 bg-slate-900/40 text-slate-400 cursor-not-allowed'
+                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 shadow-sm'
+                        }`}
+                      >
+                        <FiRefreshCw size={13} className={saving ? 'animate-spin' : ''} />
+                        {investigator.primera_vez ? 'Inducción Pendiente' : 'Reiniciar Inducción'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

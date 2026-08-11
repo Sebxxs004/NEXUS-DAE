@@ -72,8 +72,10 @@ const investigatorFields = `
   u.nombre,
   u.email,
   u.activo,
+  u.primera_vez,
   u.created_at,
   u.updated_at,
+  r.nombre AS rol,
   COALESCE(ei.resuelto, false) AS feedback_resuelto,
   ei.id AS feedback_id,
   ei.puntaje AS feedback_puntaje,
@@ -93,7 +95,6 @@ router.get('/investigadores', authenticate, requireAdmin, async (_req, res) => {
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
       LEFT JOIN evaluaciones_investigador ei ON ei.usuario_id = u.id
-      WHERE r.nombre = 'investigador'
       ORDER BY u.created_at DESC
       `
     );
@@ -102,6 +103,25 @@ router.get('/investigadores', authenticate, requireAdmin, async (_req, res) => {
   } catch (error) {
     console.error('Error listando investigadores:', error);
     return res.status(500).json({ error: 'No fue posible listar investigadores' });
+  }
+});
+
+router.patch('/investigadores/:id/reset-first-login', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE usuarios SET primera_vez = TRUE WHERE id = $1 RETURNING id, nombre, email, primera_vez',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    return res.json({ usuario: result.rows[0] });
+  } catch (error) {
+    console.error('Error reseteando primer ingreso:', error);
+    return res.status(500).json({ error: 'No fue posible resetear el primer ingreso' });
   }
 });
 

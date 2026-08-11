@@ -50,6 +50,7 @@ function CasesSidebarModule({
   onClose,
   onOpenCaseDetails,
   onSwitchToBoard,
+  onSwitchToLobby,
 }) {
   return (
     <div className="min-h-screen bg-investigation-bg text-slate-100">
@@ -60,6 +61,13 @@ function CasesSidebarModule({
             <h1 className="mt-1 font-mono text-xl font-semibold tracking-[0.18em] text-slate-100">Carpetas del caso</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onSwitchToLobby}
+              className="rounded-lg border border-slate-500/30 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white"
+            >
+              Ir al Despacho
+            </button>
             <button
               type="button"
               onClick={onSwitchToBoard}

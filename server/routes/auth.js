@@ -18,6 +18,20 @@ const matchesPassword = async (plainPassword, storedHash, legacyPassword) => {
 };
 
 // Login
+const authenticate = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET || 'prisma_secret_key_2026');
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ error: 'Token invalido o expirado' });
+  }
+};
+
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -27,7 +41,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.password_hash, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
+      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
       [email]
     );
 
@@ -60,8 +74,19 @@ router.post('/login', async (req, res) => {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: usuario.rol,
+        primera_vez: usuario.primera_vez,
       },
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
+router.post('/complete-first-login', authenticate, async (req, res) => {
+  try {
+    await pool.query('UPDATE usuarios SET primera_vez = FALSE WHERE id = $1', [req.user.id]);
+    res.json({ success: true });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error en servidor' });

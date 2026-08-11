@@ -26,6 +26,7 @@ import CasesSidebarModule from './CasesSidebarModule';
 import fgnLogo from '../assets/fgn-logo.png';
 import nexusLogo from '../assets/NEXUS-DAE.png';
 import fondoLogin from '../assets/fondo-login.png';
+import fondoAdmin from '../assets/fondo-admin.jpeg';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
 const TICK_MS = 50;
@@ -417,11 +418,17 @@ function buildCompactGraphLayout(nodes, width = 320, height = 150) {
 function DashboardInvestigator({ token }) {
   const boardRef = useRef(null);
   const groupedRegionsRef = useRef([]);
-  const { usuario, logout } = useAuthStore();
+  const { usuario, logout, completarPrimeraVez } = useAuthStore();
   const [showWelcome, setShowWelcome] = useState(() => {
-    const isFirst = localStorage.getItem(`nexus_first_login_${usuario?.id}`);
-    return isFirst === null;
+    return usuario?.primera_vez !== false;
   });
+  
+  useEffect(() => {
+    if (usuario) {
+      setShowWelcome(usuario.primera_vez !== false);
+    }
+  }, [usuario]);
+
   const [showInstructions, setShowInstructions] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -430,7 +437,10 @@ function DashboardInvestigator({ token }) {
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isCaseSummaryOpen, setIsCaseSummaryOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState('tablero');
+  const [activeSection, setActiveSection] = useState('lobby');
+  const [configData, setConfigData] = useState({ tiempo_limite_minutos: 180 });
+
+
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
 
@@ -462,6 +472,34 @@ function DashboardInvestigator({ token }) {
   const [error, setError] = useState('');
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  useEffect(() => {
+    const cargarConfiguracion = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/configuracion`, {
+          headers: authHeaders,
+        });
+        if (response.data) {
+          setConfigData(response.data);
+        }
+      } catch (err) {
+        console.error('Error cargando configuración:', err);
+      }
+    };
+    if (token) {
+      cargarConfiguracion();
+    }
+  }, [authHeaders, token]);
+
+  useEffect(() => {
+    if (investigationFinished || validationResult) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [investigationFinished, validationResult]);
 
   useEffect(() => {
     if (showWelcome) {
@@ -1887,6 +1925,7 @@ function DashboardInvestigator({ token }) {
                     if (currentStep < 4) {
                       setCurrentStep((curr) => curr + 1);
                     } else {
+                      completarPrimeraVez();
                       localStorage.setItem(`nexus_first_login_${usuario?.id}`, 'false');
                       setShowInstructions(false);
                     }
@@ -1905,80 +1944,163 @@ function DashboardInvestigator({ token }) {
         </div>
       )}
 
-      {activeSection === 'casos' ? (
-        <CasesSidebarModule
-        usuario={usuario}
-        logout={logout}
-        elapsedSeconds={elapsedSeconds}
-        formatSeconds={formatSeconds}
-        loadingCases={loadingCases}
-        carpetas={carpetas}
-        selectedCaseId={selectedCaseId}
-        onSelectCase={(caseId) => {
-          setSelectedCaseId(caseId);
-          setSelectedDocument(null);
-        }}
-        caseMetadataById={caseMetadataById}
-        selectedCase={selectedCase}
-        selectedCaseMetadata={selectedCaseMetadata}
-        loadingDocuments={loadingDocuments}
-        selectedCaseDocuments={selectedCaseDocuments}
-        selectedDocument={selectedDocument}
-        onSelectDocument={setSelectedDocument}
-        onOpenCaseDetails={handleOpenCaseDetails}
-        onSwitchToBoard={() => setActiveSection('tablero')}
-      />
-    ) : (
-    <>
-    <div className="h-screen bg-investigation-bg text-slate-100">
-      <header className="border-b border-cyan-500/20 bg-panel-dark px-6 py-4 backdrop-blur-md">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Modo fiscal</p>
-            <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
-            <p className="mt-1 text-xs text-slate-400">Tiempo investigando: <span className="font-mono text-cyan-200">{formatSeconds(elapsedSeconds)}</span></p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      {activeSection === 'lobby' && (
+        <div 
+          className="fixed inset-0 z-40 flex flex-col justify-between bg-no-repeat bg-cover bg-center text-slate-100 p-6 md:p-8"
+          style={{
+            backgroundImage: `linear-gradient(135deg, rgba(6, 10, 15, 0.85) 0%, rgba(6, 10, 15, 0.9) 100%), url(${fondoAdmin})`,
+          }}
+        >
+          {/* Header Row */}
+          <div className="flex items-center justify-between">
             <button
-              type="button"
-              onClick={restartInvestigation}
-              disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
-              className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <FiPlay className="inline-block -translate-y-[1px]" size={14} /> Reiniciar investigación
-            </button>
-            <button
-              type="button"
-              onClick={finishInvestigation}
-              disabled={Boolean(validationResult) || feedbackSubmitted || finishing || savingFeedback}
-              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <FiSave className="inline-block -translate-y-[1px]" size={14} /> {finishing ? 'Terminando...' : 'Terminar investigación'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('tablero')}
-              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-            >
-              Tablero de casos
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('casos')}
-              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-            >
-              Gestión de casos
-            </button>
-            <button
-              type="button"
               onClick={logout}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+              className="flex items-center gap-2 rounded-lg border border-slate-500/30 bg-slate-950/60 px-4 py-2 font-mono text-xs font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white backdrop-blur-md"
             >
-              Cerrar sesion
+              ← Volver al login
+            </button>
+
+            {/* Timer Badge */}
+            <div className="flex items-center gap-2 rounded-full bg-red-600/90 px-4 py-1.5 font-mono text-xs font-bold tracking-wider text-white shadow-lg border border-red-500/30 shadow-red-600/20">
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              TIEMPO {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}
+            </div>
+          </div>
+
+          {/* Center Logo & Title */}
+          <div className="flex flex-col items-center justify-center text-center space-y-6 flex-1">
+            <h1 className="font-mono text-3xl md:text-4xl font-extrabold uppercase tracking-[0.25em] text-slate-100 drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+              Bienvenido a tu Despacho
+            </h1>
+            
+            <div className="flex flex-col items-center space-y-2 animate-welcome-zoom">
+              <img
+                src={nexusLogo}
+                alt="Logo NEXUS"
+                className="h-24 w-auto drop-shadow-[0_0_25px_rgba(6,182,212,0.35)]"
+              />
+              <span className="font-mono text-2xl font-bold tracking-[0.3em] text-cyan-300 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">NEXUS</span>
+              <span className="text-[10px] tracking-[0.2em] font-mono text-slate-400 uppercase">Dirección de Altos Estudios</span>
+            </div>
+
+            {/* Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
+              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
+                ⏱️ Jornada: <strong className="text-cyan-300">3 horas</strong>
+              </span>
+              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
+                📂 Casos activos: <strong className="text-cyan-300">{carpetas.length}</strong>
+              </span>
+              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
+                👥 Equipo: <strong className="text-cyan-300">1 Judicante</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Bottom Navigation Buttons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full mx-auto pb-4">
+            <button
+              onClick={() => setActiveSection('casos')}
+              className="flex flex-col items-center justify-center p-6 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+            >
+              <div className="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
+                <FiFolder size={24} />
+              </div>
+              <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Procesos del despacho</span>
+              <span className="text-xs text-slate-400">Noticias criminales y expedientes</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection('tablero')}
+              className="flex flex-col items-center justify-center p-6 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+            >
+              <div className="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
+                <FiZap size={24} />
+              </div>
+              <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Toma de decisiones</span>
+              <span className="text-xs text-slate-400">Patrones y conexiones</span>
             </button>
           </div>
         </div>
-      </header>
+      )}
+
+      {activeSection === 'casos' && (
+        <CasesSidebarModule
+          usuario={usuario}
+          logout={logout}
+          elapsedSeconds={elapsedSeconds}
+          formatSeconds={formatSeconds}
+          loadingCases={loadingCases}
+          carpetas={carpetas}
+          selectedCaseId={selectedCaseId}
+          onSelectCase={(caseId) => {
+            setSelectedCaseId(caseId);
+            setSelectedDocument(null);
+          }}
+          caseMetadataById={caseMetadataById}
+          selectedCase={selectedCase}
+          selectedCaseMetadata={selectedCaseMetadata}
+          loadingDocuments={loadingDocuments}
+          selectedCaseDocuments={selectedCaseDocuments}
+          selectedDocument={selectedDocument}
+          onSelectDocument={setSelectedDocument}
+          onOpenCaseDetails={handleOpenCaseDetails}
+          onSwitchToBoard={() => setActiveSection('tablero')}
+          onSwitchToLobby={() => setActiveSection('lobby')}
+        />
+      )}
+
+      {activeSection === 'tablero' && (
+        <>
+        <div className="h-screen bg-investigation-bg text-slate-100">
+          <header className="border-b border-cyan-500/20 bg-panel-dark px-6 py-4 backdrop-blur-md">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Modo fiscal</p>
+                <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
+                <p className="mt-1 text-xs text-slate-400">Tiempo investigando: <span className="font-mono text-cyan-200">{formatSeconds(elapsedSeconds)}</span></p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={restartInvestigation}
+                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiPlay className="inline-block -translate-y-[1px]" size={14} /> Reiniciar investigación
+                </button>
+                <button
+                  type="button"
+                  onClick={finishInvestigation}
+                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing || savingFeedback}
+                  className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiSave className="inline-block -translate-y-[1px]" size={14} /> {finishing ? 'Terminando...' : 'Terminar investigación'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('lobby')}
+                  className="rounded-lg border border-slate-500/30 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white"
+                >
+                  Ir al Despacho
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('casos')}
+                  className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                >
+                  Gestión de casos
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+                >
+                  Cerrar sesion
+                </button>
+              </div>
+            </div>
+          </header>
       <main className="h-[calc(100vh-88px)] overflow-hidden p-4">
 
           {error && (
@@ -2566,8 +2688,8 @@ function DashboardInvestigator({ token }) {
           </div>
         </div>
       )}
-    </>
-    )}
+      </>
+      )}
     </>
   );
 }

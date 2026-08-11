@@ -48,6 +48,21 @@ const useAuthStore = create((set, get) => ({
     localStorage.removeItem('usuario');
   },
 
+  completarPrimeraVez: async () => {
+    const { token, usuario } = get();
+    if (!token || !usuario) return;
+    try {
+      await axios.post(`${API_URL}/auth/complete-first-login`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const nuevoUsuario = { ...usuario, primera_vez: false };
+      set({ usuario: nuevoUsuario });
+      localStorage.setItem('usuario', JSON.stringify(nuevoUsuario));
+    } catch (e) {
+      console.error('Error completando primera vez', e);
+    }
+  },
+
   restaurarSesion: () => {
     const token = localStorage.getItem('token');
     const usuarioStr = localStorage.getItem('usuario');
