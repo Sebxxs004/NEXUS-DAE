@@ -80,6 +80,23 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  guardarGrupos: async (grupos) => {
+    const { token, usuario } = get();
+    if (!token || !usuario) return;
+    try {
+      await axios.post(`${API_URL}/auth/save-groups`, {
+        created_groups: JSON.stringify(grupos)
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const nuevoUsuario = { ...usuario, created_groups: JSON.stringify(grupos) };
+      set({ usuario: nuevoUsuario });
+      localStorage.setItem('usuario', JSON.stringify(nuevoUsuario));
+    } catch (e) {
+      console.error('Error guardando grupos:', e);
+    }
+  },
+
   restaurarSesion: () => {
     const token = localStorage.getItem('token');
     const usuarioStr = localStorage.getItem('usuario');

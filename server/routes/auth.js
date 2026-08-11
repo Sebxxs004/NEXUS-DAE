@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
+      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, u.created_groups, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
       [email]
     );
 
@@ -76,6 +76,7 @@ router.post('/login', async (req, res) => {
         rol: usuario.rol,
         primera_vez: usuario.primera_vez,
         elapsed_seconds: usuario.elapsed_seconds,
+        created_groups: usuario.created_groups,
       },
     });
   } catch (error) {
@@ -101,6 +102,20 @@ router.post('/save-time', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'elapsed_seconds requerido' });
     }
     await pool.query('UPDATE usuarios SET elapsed_seconds = $1 WHERE id = $2', [parseInt(elapsed_seconds, 10), req.user.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
+router.post('/save-groups', authenticate, async (req, res) => {
+  try {
+    const { created_groups } = req.body;
+    if (created_groups === undefined) {
+      return res.status(400).json({ error: 'created_groups requerido' });
+    }
+    await pool.query('UPDATE usuarios SET created_groups = $1 WHERE id = $2', [created_groups, req.user.id]);
     res.json({ success: true });
   } catch (error) {
     console.error(error);

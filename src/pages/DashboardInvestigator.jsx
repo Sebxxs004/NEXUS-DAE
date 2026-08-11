@@ -2010,7 +2010,6 @@ function DashboardInvestigator({ token }) {
                 alt="Logo NEXUS"
                 className="h-44 md:h-52 w-auto drop-shadow-[0_0_35px_rgba(6,182,212,0.45)]"
               />
-              <span className="font-mono text-3xl font-bold tracking-[0.3em] text-cyan-300 drop-shadow-[0_0_15px_rgba(6,182,212,0.6)]">NEXUS</span>
               <span className="text-[11px] tracking-[0.2em] font-mono text-slate-300 uppercase">Dirección de Altos Estudios</span>
             </div>
 
@@ -2066,6 +2065,7 @@ function DashboardInvestigator({ token }) {
           logout={handleLogout}
           elapsedSeconds={elapsedSeconds}
           formatSeconds={formatSeconds}
+          configData={configData}
           loadingCases={loadingCases}
           carpetas={carpetas}
           selectedCaseId={selectedCaseId}
