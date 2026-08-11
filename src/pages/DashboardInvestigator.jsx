@@ -22,6 +22,7 @@ import {
   FiZap,
   FiPlus,
   FiMinus,
+  FiX,
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
 import CasesSidebarModule from './CasesSidebarModule';
