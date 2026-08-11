@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
+      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
       [email]
     );
 
@@ -75,6 +75,7 @@ router.post('/login', async (req, res) => {
         email: usuario.email,
         rol: usuario.rol,
         primera_vez: usuario.primera_vez,
+        elapsed_seconds: usuario.elapsed_seconds,
       },
     });
   } catch (error) {
@@ -86,6 +87,20 @@ router.post('/login', async (req, res) => {
 router.post('/complete-first-login', authenticate, async (req, res) => {
   try {
     await pool.query('UPDATE usuarios SET primera_vez = FALSE WHERE id = $1', [req.user.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
+router.post('/save-time', authenticate, async (req, res) => {
+  try {
+    const { elapsed_seconds } = req.body;
+    if (elapsed_seconds === undefined) {
+      return res.status(400).json({ error: 'elapsed_seconds requerido' });
+    }
+    await pool.query('UPDATE usuarios SET elapsed_seconds = $1 WHERE id = $2', [parseInt(elapsed_seconds, 10), req.user.id]);
     res.json({ success: true });
   } catch (error) {
     console.error(error);

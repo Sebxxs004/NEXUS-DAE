@@ -76,6 +76,67 @@ function DashboardAdmin() {
     currentName: '',
   });
 
+  const [configHours, setConfigHours] = useState(3);
+  const [configMinutes, setConfigMinutes] = useState(0);
+  const [customAddMinutes, setCustomAddMinutes] = useState('');
+  const [adminSuccessMsg, setAdminSuccessMsg] = useState('');
+  const [adminErrorMsg, setAdminErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (configData?.tiempo_limite_minutos) {
+      setConfigHours(Math.floor(configData.tiempo_limite_minutos / 60));
+      setConfigMinutes(configData.tiempo_limite_minutos % 60);
+    }
+  }, [configData]);
+
+  const handleSaveTimeConfig = async (e) => {
+    e.preventDefault();
+    const totalMinutes = parseInt(configHours, 10) * 60 + parseInt(configMinutes, 10);
+    if (totalMinutes < 1) {
+      setAdminErrorMsg('El tiempo límite debe ser al menos de 1 minuto.');
+      return;
+    }
+    setSavingConfig(true);
+    setAdminSuccessMsg('');
+    setAdminErrorMsg('');
+    try {
+      const response = await axios.put(`${API_URL}/configuracion`, {
+        tiempo_limite_minutos: totalMinutes
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setConfigData(response.data);
+      setAdminSuccessMsg('Configuración de tiempo guardada exitosamente.');
+    } catch (err) {
+      console.error(err);
+      setAdminErrorMsg('Error al guardar la configuración.');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleAddMinutesToAll = async (minutosToAdd) => {
+    const min = parseInt(minutosToAdd, 10);
+    if (isNaN(min) || min <= 0) {
+      setAdminErrorMsg('Cantidad de minutos inválida.');
+      return;
+    }
+    setAdminSuccessMsg('');
+    setAdminErrorMsg('');
+    try {
+      const response = await axios.post(`${API_URL}/configuracion/add-minutes`, {
+        minutos: min
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setConfigData(response.data);
+      setAdminSuccessMsg(`Se han agregado ${min} minutos exitosamente al contador de todos los fiscales.`);
+    } catch (err) {
+      console.error(err);
+      setAdminErrorMsg('Error al agregar minutos.');
+    }
+  };
+
   useEffect(() => {
     cargarCarpetas();
     cargarConfiguracion();
@@ -576,6 +637,144 @@ function DashboardAdmin() {
     );
   }
 
+  if (activeSection === 'configuracion') {
+    return (
+      <div className="min-h-screen bg-investigation-bg text-slate-100 p-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-8 flex items-center justify-between border-b border-slate-500/20 pb-4">
+            <div>
+              <h1 className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-100">CONFIGURACIÓN DEL JUEGO</h1>
+              <p className="mt-1 font-mono text-xs text-cyan-300/70">Panel de control de tiempos y alertas</p>
+            </div>
+            <button
+              onClick={() => {
+                setAdminSuccessMsg('');
+                setAdminErrorMsg('');
+                setActiveSection('casos');
+              }}
+              className="rounded-lg border border-slate-500/30 bg-slate-900/60 px-4 py-2 font-mono text-xs text-slate-200 transition hover:bg-slate-700/40"
+            >
+              ← Volver a Casos
+            </button>
+          </div>
+
+          {adminSuccessMsg && (
+            <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 animate-pulse">
+              {adminSuccessMsg}
+            </div>
+          )}
+
+          {adminErrorMsg && (
+            <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {adminErrorMsg}
+            </div>
+          )}
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Limit Config Box */}
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-950/50 p-6 backdrop-blur-sm shadow-xl">
+              <h2 className="flex items-center gap-2 font-mono text-base font-semibold uppercase tracking-wider text-cyan-300 mb-4">
+                <FiSettings size={18} />
+                Límite de tiempo
+              </h2>
+              <p className="text-xs text-slate-400 mb-6">
+                Define el tiempo límite disponible para los investigadores. Esta configuración impactará a todos los usuarios en el lobby y vistas de juego.
+              </p>
+
+              <form onSubmit={handleSaveTimeConfig} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Horas</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={configHours}
+                      onChange={(e) => setConfigHours(parseInt(e.target.value, 10) || 0)}
+                      className="w-full rounded-lg border border-slate-500/30 bg-slate-900/80 px-4 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Minutos</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={configMinutes}
+                      onChange={(e) => setConfigMinutes(parseInt(e.target.value, 10) || 0)}
+                      className="w-full rounded-lg border border-slate-500/30 bg-slate-900/80 px-4 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 text-xs text-slate-400 font-mono">
+                  Duración total calculada: <strong className="text-cyan-300">{parseInt(configHours, 10) * 60 + parseInt(configMinutes, 10)} minutos</strong>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingConfig}
+                  className="w-full rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:opacity-60"
+                >
+                  {savingConfig ? 'Guardando...' : 'Guardar Límite'}
+                </button>
+              </form>
+            </div>
+
+            {/* Quick Add Minutes Box */}
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-950/50 p-6 backdrop-blur-sm shadow-xl flex flex-col justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 font-mono text-base font-semibold uppercase tracking-wider text-cyan-300 mb-4">
+                  <FiPlus size={18} />
+                  Agregar tiempo extra
+                </h2>
+                <p className="text-xs text-slate-400 mb-6">
+                  Agrega minutos adicionales al tiempo límite global en tiempo real. Los investigadores recibirán una notificación emergente inmediata informándoles de la adición de tiempo.
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[5, 10, 15, 30, 45, 60].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => handleAddMinutesToAll(mins)}
+                      className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 py-2 font-mono text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 hover:text-white"
+                    >
+                      +{mins} min
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="border-t border-slate-500/20 pt-4">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Cantidad personalizada</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="Minutos"
+                      min="1"
+                      value={customAddMinutes}
+                      onChange={(e) => setCustomAddMinutes(e.target.value)}
+                      className="flex-1 rounded-lg border border-slate-500/30 bg-slate-900/80 px-4 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      onClick={() => {
+                        handleAddMinutesToAll(customAddMinutes);
+                        setCustomAddMinutes('');
+                      }}
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-investigation-bg text-slate-100">
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
@@ -585,7 +784,12 @@ function DashboardAdmin() {
             <p className="font-mono text-xs text-cyan-300/70">Bienvenido {usuario?.nombre}</p>
           </div>
           <div className="flex items-center gap-2">
-
+            <button
+              onClick={() => setActiveSection('configuracion')}
+              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 font-mono text-sm text-cyan-200 transition hover:bg-cyan-500/20"
+            >
+              Configuración
+            </button>
             <button
               onClick={() => setActiveSection('investigadores')}
               className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 font-mono text-sm text-emerald-200 transition hover:bg-emerald-500/20"

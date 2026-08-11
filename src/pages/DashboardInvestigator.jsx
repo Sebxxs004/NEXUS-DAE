@@ -418,7 +418,7 @@ function buildCompactGraphLayout(nodes, width = 320, height = 150) {
 function DashboardInvestigator({ token }) {
   const boardRef = useRef(null);
   const groupedRegionsRef = useRef([]);
-  const { usuario, logout, completarPrimeraVez } = useAuthStore();
+  const { usuario, logout, completarPrimeraVez, guardarTiempo } = useAuthStore();
   const [showWelcome, setShowWelcome] = useState(() => {
     return usuario?.primera_vez !== false;
   });
@@ -454,7 +454,16 @@ function DashboardInvestigator({ token }) {
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
 
   const [startTimestamp, setStartTimestamp] = useState(Date.now());
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(() => usuario?.elapsed_seconds || 0);
+
+  const handleLogout = async () => {
+    try {
+      await guardarTiempo(elapsedSeconds);
+    } catch (e) {
+      console.error(e);
+    }
+    logout();
+  };
 
   const [groupMeta, setGroupMeta] = useState({});
   const [groupJustifications, setGroupJustifications] = useState({});
@@ -470,10 +479,13 @@ function DashboardInvestigator({ token }) {
   const [savingPlanAccion, setSavingPlanAccion] = useState(false);
   const [savingJustifications, setSavingJustifications] = useState(false);
   const [error, setError] = useState('');
+  const [timeAlertMessage, setTimeAlertMessage] = useState(null);
+  const [lastSeenAlertaVersion, setLastSeenAlertaVersion] = useState(null);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   useEffect(() => {
+    let timerId;
     const cargarConfiguracion = async () => {
       try {
         const response = await axios.get(`${API_URL}/configuracion`, {
@@ -481,14 +493,27 @@ function DashboardInvestigator({ token }) {
         });
         if (response.data) {
           setConfigData(response.data);
+          const { alerta_version, alerta_minutos_agregados } = response.data;
+          
+          setLastSeenAlertaVersion((prevVersion) => {
+            if (prevVersion !== null && alerta_version > prevVersion && alerta_minutos_agregados > 0) {
+              setTimeAlertMessage(`Se han agregado ${alerta_minutos_agregados} minutos al contador`);
+              setTimeout(() => setTimeAlertMessage(null), 6000);
+            }
+            return alerta_version;
+          });
         }
       } catch (err) {
         console.error('Error cargando configuración:', err);
       }
     };
+
     if (token) {
       cargarConfiguracion();
+      timerId = setInterval(cargarConfiguracion, 5000);
     }
+
+    return () => clearInterval(timerId);
   }, [authHeaders, token]);
 
   useEffect(() => {
@@ -1548,6 +1573,12 @@ function DashboardInvestigator({ token }) {
 
   return (
     <>
+      {timeAlertMessage && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-950/95 px-6 py-4 text-sm font-semibold text-amber-200 shadow-[0_0_30px_rgba(245,158,11,0.35)] backdrop-blur-md animate-bounce">
+          <FiAlertTriangle className="text-amber-400 shrink-0" size={20} />
+          <span>{timeAlertMessage}</span>
+        </div>
+      )}
       {showWelcome && (
         <div 
           className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-no-repeat bg-cover bg-center text-slate-100 overflow-hidden"
@@ -1948,22 +1979,22 @@ function DashboardInvestigator({ token }) {
         <div 
           className="fixed inset-0 z-40 flex flex-col justify-between bg-no-repeat bg-cover bg-center text-slate-100 p-6 md:p-8"
           style={{
-            backgroundImage: `linear-gradient(135deg, rgba(6, 10, 15, 0.85) 0%, rgba(6, 10, 15, 0.9) 100%), url(${fondoAdmin})`,
+            backgroundImage: `linear-gradient(135deg, rgba(6, 10, 15, 0.45) 0%, rgba(6, 10, 15, 0.55) 100%), url(${fondoAdmin})`,
           }}
         >
           {/* Header Row */}
           <div className="flex items-center justify-between">
             <button
-              onClick={logout}
-              className="flex items-center gap-2 rounded-lg border border-slate-500/30 bg-slate-950/60 px-4 py-2 font-mono text-xs font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white backdrop-blur-md"
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-950/60 px-4 py-2 font-mono text-xs font-semibold text-red-200 transition hover:bg-red-900/50 hover:text-white backdrop-blur-md"
             >
-              ← Volver al login
+              Cerrar sesión
             </button>
 
-            {/* Timer Badge */}
-            <div className="flex items-center gap-2 rounded-full bg-red-600/90 px-4 py-1.5 font-mono text-xs font-bold tracking-wider text-white shadow-lg border border-red-500/30 shadow-red-600/20">
-              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-              TIEMPO {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}
+            {/* Alarming Timer Badge */}
+            <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-800 via-red-600 to-rose-700 px-6 py-2.5 font-mono text-sm md:text-base font-black tracking-widest text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] border-2 border-red-400/80 animate-pulse scale-105">
+              <FiAlertTriangle className="text-white animate-bounce shrink-0" size={18} />
+              <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">TIEMPO LÍMITE: {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}</span>
             </div>
           </div>
 
@@ -1973,49 +2004,54 @@ function DashboardInvestigator({ token }) {
               Bienvenido a tu Despacho
             </h1>
             
-            <div className="flex flex-col items-center space-y-2 animate-welcome-zoom">
+            <div className="flex flex-col items-center space-y-3 animate-welcome-zoom">
               <img
                 src={nexusLogo}
                 alt="Logo NEXUS"
-                className="h-24 w-auto drop-shadow-[0_0_25px_rgba(6,182,212,0.35)]"
+                className="h-44 md:h-52 w-auto drop-shadow-[0_0_35px_rgba(6,182,212,0.45)]"
               />
-              <span className="font-mono text-2xl font-bold tracking-[0.3em] text-cyan-300 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">NEXUS</span>
-              <span className="text-[10px] tracking-[0.2em] font-mono text-slate-400 uppercase">Dirección de Altos Estudios</span>
+              <span className="font-mono text-3xl font-bold tracking-[0.3em] text-cyan-300 drop-shadow-[0_0_15px_rgba(6,182,212,0.6)]">NEXUS</span>
+              <span className="text-[11px] tracking-[0.2em] font-mono text-slate-300 uppercase">Dirección de Altos Estudios</span>
             </div>
 
-            {/* Badges */}
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
-              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
-                ⏱️ Jornada: <strong className="text-cyan-300">3 horas</strong>
-              </span>
-              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
-                📂 Casos activos: <strong className="text-cyan-300">{carpetas.length}</strong>
-              </span>
-              <span className="flex items-center gap-2 rounded-lg border border-slate-500/20 bg-slate-950/60 px-4 py-2 font-mono text-xs text-slate-300 backdrop-blur-sm">
-                👥 Equipo: <strong className="text-cyan-300">1 Judicante</strong>
-              </span>
+            {/* Badges with Icons */}
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+              <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
+                <FiClock className="text-cyan-400" size={15} />
+                <span>Jornada: <strong className="text-cyan-300">3 horas</strong></span>
+              </div>
+              <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
+                <FiFolder className="text-cyan-400" size={15} />
+                <span>Casos activos: <strong className="text-cyan-300">{carpetas.length}</strong></span>
+              </div>
+              <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
+                <FiUsers className="text-cyan-400" size={15} />
+                <span>Equipo: <strong className="text-cyan-300">1 Judicante</strong></span>
+              </div>
             </div>
           </div>
 
-          {/* Bottom Navigation Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full mx-auto pb-4">
+          {/* Bottom Navigation Buttons aligned to opposite corners */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-end justify-between w-full gap-4 pb-2">
+            {/* Left Button */}
             <button
               onClick={() => setActiveSection('casos')}
-              className="flex flex-col items-center justify-center p-6 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
             >
-              <div className="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
-                <FiFolder size={24} />
+              <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
+                <FiFolder size={20} />
               </div>
               <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Procesos del despacho</span>
               <span className="text-xs text-slate-400">Noticias criminales y expedientes</span>
             </button>
 
+            {/* Right Button */}
             <button
               onClick={() => setActiveSection('tablero')}
-              className="flex flex-col items-center justify-center p-6 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
             >
-              <div className="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
-                <FiZap size={24} />
+              <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
+                <FiZap size={20} />
               </div>
               <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Toma de decisiones</span>
               <span className="text-xs text-slate-400">Patrones y conexiones</span>
@@ -2027,7 +2063,7 @@ function DashboardInvestigator({ token }) {
       {activeSection === 'casos' && (
         <CasesSidebarModule
           usuario={usuario}
-          logout={logout}
+          logout={handleLogout}
           elapsedSeconds={elapsedSeconds}
           formatSeconds={formatSeconds}
           loadingCases={loadingCases}
@@ -2093,7 +2129,7 @@ function DashboardInvestigator({ token }) {
                 </button>
                 <button
                   type="button"
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
                 >
                   Cerrar sesion
