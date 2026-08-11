@@ -20,6 +20,8 @@ import {
   FiUsers,
   FiXCircle,
   FiZap,
+  FiPlus,
+  FiMinus,
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
 import CasesSidebarModule from './CasesSidebarModule';
@@ -31,6 +33,7 @@ import fondoAdmin from '../assets/fondo-admin.jpeg';
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
 const TICK_MS = 50;
 const NODE_RADIUS = 34;
+const FIXED_SPEED = 1.4;
 const GROUP_COLOR_PALETTE = ['#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#f97316'];
 const ACTOR_BADGE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#f97316'];
 
@@ -479,8 +482,39 @@ function DashboardInvestigator({ token }) {
   const [savingPlanAccion, setSavingPlanAccion] = useState(false);
   const [savingJustifications, setSavingJustifications] = useState(false);
   const [error, setError] = useState('');
-  const [timeAlertMessage, setTimeAlertMessage] = useState(null);
   const [lastSeenAlertaVersion, setLastSeenAlertaVersion] = useState(null);
+  const [timeAlertMessage, setTimeAlertMessage] = useState(null);
+
+  // Canvas zoom & pan states
+  const [boardZoom, setBoardZoom] = useState(0.8);
+  const [boardPan, setBoardPan] = useState({ x: 10, y: 10 });
+  const [isBoardPanning, setIsBoardPanning] = useState(false);
+  const [boardPanStart, setBoardPanStart] = useState({ x: 0, y: 0 });
+
+  const handleBoardWheel = (e) => {
+    e.preventDefault();
+    const zoomIntensity = 0.05;
+    if (e.deltaY < 0) {
+      setBoardZoom((prev) => Math.min(prev + zoomIntensity, 2.0));
+    } else {
+      setBoardZoom((prev) => Math.max(prev - zoomIntensity, 0.3));
+    }
+  };
+
+  const handleBoardMouseDown = (e) => {
+    if (e.target.closest('button')) return;
+    setIsBoardPanning(true);
+    setBoardPanStart({ x: e.clientX - boardPan.x, y: e.clientY - boardPan.y });
+  };
+
+  const handleBoardMouseMove = (e) => {
+    if (!isBoardPanning) return;
+    setBoardPan({ x: e.clientX - boardPanStart.x, y: e.clientY - boardPanStart.y });
+  };
+
+  const handleBoardMouseUp = () => {
+    setIsBoardPanning(false);
+  };
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -551,15 +585,12 @@ function DashboardInvestigator({ token }) {
         const cases = response.data || [];
         setCarpetas(cases);
 
-        const board = boardRef.current;
-        const boardWidth = Math.max(700, board?.clientWidth || 980);
-        const boardHeight = Math.max(420, board?.clientHeight || 600);
-
+        const canvasWidth = 2800;
         const generatedNodes = cases.map((caseItem, index) => ({
           id: caseItem.id,
           label: caseItem.nombre,
-          x: 90 + ((index * 109) % Math.max(220, boardWidth - 200)),
-          y: 90 + ((index * 83) % Math.max(180, boardHeight - 200)),
+          x: 160 + ((index * 260) % (canvasWidth - 320)),
+          y: 120 + (Math.floor((index * 260) / (canvasWidth - 320)) * 240),
         }));
 
         const generatedVelocities = {};
@@ -638,10 +669,39 @@ function DashboardInvestigator({ token }) {
 
   const activeNodes = useMemo(() => nodes.filter((node) => !finalizedNodeIds.has(String(node.id))), [nodes, finalizedNodeIds]);
 
-  const activeConnections = useMemo(
-    () => connections.filter((edge) => !finalizedNodeIds.has(String(edge.a)) && !finalizedNodeIds.has(String(edge.b))),
-    [connections, finalizedNodeIds]
-  );
+  const createdGroupsList = useMemo(() => {
+    try {
+      return usuario?.created_groups ? JSON.parse(usuario.created_groups) : [];
+    } catch (e) {
+      return [];
+    }
+  }, [usuario?.created_groups]);
+
+  const groupConnections = useMemo(() => {
+    const list = [];
+    createdGroupsList.forEach((group) => {
+      const ids = group.caseIds || [];
+      for (let i = 0; i < ids.length - 1; i++) {
+        list.push({ a: ids[i], b: ids[i + 1] });
+      }
+    });
+    return list;
+  }, [createdGroupsList]);
+
+  const activeConnections = useMemo(() => {
+    const filteredBase = connections.filter((edge) => !finalizedNodeIds.has(String(edge.a)) && !finalizedNodeIds.has(String(edge.b)));
+    const merged = [...filteredBase];
+    groupConnections.forEach((gEdge) => {
+      const exists = merged.some(
+        (e) => (String(e.a) === String(gEdge.a) && String(e.b) === String(gEdge.b)) || 
+               (String(e.a) === String(gEdge.b) && String(e.b) === String(gEdge.a))
+      );
+      if (!exists) {
+        merged.push({ a: gEdge.a, b: gEdge.b });
+      }
+    });
+    return merged;
+  }, [connections, finalizedNodeIds, groupConnections]);
 
   const activeNodeById = useMemo(() => {
     const map = new Map();
@@ -659,15 +719,20 @@ function DashboardInvestigator({ token }) {
     const activeNodeIdSet = new Set(activeNodeIds.map((nodeId) => String(nodeId)));
 
     const interval = setInterval(() => {
-      const board = boardRef.current;
-      const boardWidth = Math.max(700, board?.clientWidth || 980);
-      const boardHeight = Math.max(420, board?.clientHeight || 600);
+      const boardWidth = 2800;
+      const boardHeight = 2200;
       const minX = NODE_RADIUS;
       const maxX = boardWidth - NODE_RADIUS;
       const minY = NODE_RADIUS;
       const maxY = boardHeight - NODE_RADIUS;
-      const minDistance = NODE_RADIUS * 2;
+      const minDistance = NODE_RADIUS * 3.5;
       const nextVelocities = { ...velocities };
+
+      const normalizeVelocity = (vel) => {
+        const mag = Math.hypot(vel.vx, vel.vy);
+        if (mag < 0.001) return { vx: FIXED_SPEED, vy: 0 };
+        return { vx: (vel.vx / mag) * FIXED_SPEED, vy: (vel.vy / mag) * FIXED_SPEED };
+      };
       const protectedRegions = groupedRegionsRef.current;
       const regionByNodeId = new Map();
 
@@ -699,6 +764,21 @@ function DashboardInvestigator({ token }) {
         };
       };
 
+      const groupCentroids = {};
+      protectedRegions.forEach((region) => {
+        const componentNodes = region.ids
+          .map((nodeId) => activeNodeById.get(nodeId))
+          .filter(Boolean);
+        if (componentNodes.length > 0) {
+          const sumX = componentNodes.reduce((sum, n) => sum + n.x, 0);
+          const sumY = componentNodes.reduce((sum, n) => sum + n.y, 0);
+          groupCentroids[region.key] = {
+            x: sumX / componentNodes.length,
+            y: sumY / componentNodes.length
+          };
+        }
+      });
+
       setNodes((currentNodes) => {
         const movedNodes = currentNodes.map((node) => {
           if (!activeNodeIdSet.has(String(node.id))) {
@@ -707,10 +787,18 @@ function DashboardInvestigator({ token }) {
 
           const region = regionByNodeId.get(node.id);
           const speed = getRegionVelocity(region, node.id);
-          let nextX = node.x + speed.vx;
-          let nextY = node.y + speed.vy;
           let vx = speed.vx;
           let vy = speed.vy;
+
+          if (region && groupCentroids[region.key]) {
+            const centroid = groupCentroids[region.key];
+            const force = 0.012; // Very soft attraction force
+            vx += (centroid.x - node.x) * force;
+            vy += (centroid.y - node.y) * force;
+          }
+
+          let nextX = node.x + vx;
+          let nextY = node.y + vy;
 
           if (nextX < minX || nextX > maxX) {
             vx = -vx;
@@ -727,10 +815,11 @@ function DashboardInvestigator({ token }) {
               continue;
             }
 
-            const regionLeft = region.x;
-            const regionRight = region.x + region.width;
-            const regionTop = region.y;
-            const regionBottom = region.y + region.height;
+            const margin = NODE_RADIUS + 12;
+            const regionLeft = region.x - margin;
+            const regionRight = region.x + region.width + margin;
+            const regionTop = region.y - margin;
+            const regionBottom = region.y + region.height + margin;
             const insideRegion = nextX > regionLeft && nextX < regionRight && nextY > regionTop && nextY < regionBottom;
 
             if (!insideRegion) {
@@ -744,21 +833,21 @@ function DashboardInvestigator({ token }) {
             const nearest = Math.min(distLeft, distRight, distTop, distBottom);
 
             if (nearest === distLeft) {
-              nextX = Math.max(minX, regionLeft - 1);
+              nextX = regionLeft - 1;
               vx = -Math.abs(vx);
             } else if (nearest === distRight) {
-              nextX = Math.min(maxX, regionRight + 1);
+              nextX = regionRight + 1;
               vx = Math.abs(vx);
             } else if (nearest === distTop) {
-              nextY = Math.max(minY, regionTop - 1);
+              nextY = regionTop - 1;
               vy = -Math.abs(vy);
             } else {
-              nextY = Math.min(maxY, regionBottom + 1);
+              nextY = regionBottom + 1;
               vy = Math.abs(vy);
             }
           }
 
-          nextVelocities[node.id] = { vx, vy };
+          nextVelocities[node.id] = normalizeVelocity({ vx, vy });
 
           return {
             ...node,
@@ -792,10 +881,10 @@ function DashboardInvestigator({ token }) {
             }
 
             const currentVelocity = resolvedVelocities[nodeId] || { vx: 1, vy: 1 };
-            resolvedVelocities[nodeId] = {
+            resolvedVelocities[nodeId] = normalizeVelocity({
               vx: deltaX !== 0 ? -currentVelocity.vx : currentVelocity.vx,
               vy: deltaY !== 0 ? -currentVelocity.vy : currentVelocity.vy,
-            };
+            });
           });
         };
 
@@ -806,9 +895,7 @@ function DashboardInvestigator({ token }) {
             const firstRegion = regionByNodeId.get(firstNode.id);
             const secondRegion = regionByNodeId.get(secondNode.id);
 
-            if (firstRegion && secondRegion && firstRegion.key === secondRegion.key) {
-              continue;
-            }
+
 
             let dx = secondNode.x - firstNode.x;
             let dy = secondNode.y - firstNode.y;
@@ -841,14 +928,14 @@ function DashboardInvestigator({ token }) {
 
             if (velocityAlongNormal < 0) {
               const impulse = -velocityAlongNormal;
-              nextVelocities[firstNode.id] = {
+              nextVelocities[firstNode.id] = normalizeVelocity({
                 vx: velocityA.vx - impulse * normalX,
                 vy: velocityA.vy - impulse * normalY,
-              };
-              nextVelocities[secondNode.id] = {
+              });
+              nextVelocities[secondNode.id] = normalizeVelocity({
                 vx: velocityB.vx + impulse * normalX,
                 vy: velocityB.vy + impulse * normalY,
-              };
+              });
             }
           }
         }
@@ -1090,6 +1177,26 @@ function DashboardInvestigator({ token }) {
       const minY = Math.min(...ys) - NODE_RADIUS - 18;
       const maxY = Math.max(...ys) + NODE_RADIUS + 18;
 
+      // Find matching group created in cases page
+      const matchingCreatedGroup = createdGroupsList.find((g) => {
+        const matchedCount = component.filter(id => g.caseIds.includes(id)).length;
+        return matchedCount >= 2;
+      });
+
+      let groupName = meta?.name || `Grupo ${component.length}`;
+      let groupColor = meta?.color || getDefaultGroupColor(component[0]?.length ? component.length - 1 : 0);
+
+      if (matchingCreatedGroup) {
+        groupName = matchingCreatedGroup.name;
+        if (matchingCreatedGroup.color.includes('emerald')) groupColor = '#10b981';
+        else if (matchingCreatedGroup.color.includes('amber')) groupColor = '#f59e0b';
+        else if (matchingCreatedGroup.color.includes('fuchsia')) groupColor = '#d946ef';
+        else if (matchingCreatedGroup.color.includes('rose')) groupColor = '#f43f5e';
+        else if (matchingCreatedGroup.color.includes('indigo')) groupColor = '#6366f1';
+        else if (matchingCreatedGroup.color.includes('violet')) groupColor = '#8b5cf6';
+        else if (matchingCreatedGroup.color.includes('teal')) groupColor = '#14b8a6';
+      }
+
       return {
         key,
         ids: component,
@@ -1097,11 +1204,11 @@ function DashboardInvestigator({ token }) {
         y: minY,
         width: Math.max(120, maxX - minX),
         height: Math.max(120, maxY - minY),
-        color: meta?.color || getDefaultGroupColor(component[0]?.length ? component.length - 1 : 0),
-        name: meta?.name || `Grupo ${component.length}`,
+        color: groupColor,
+        name: groupName,
       };
     });
-  }, [components, groupMeta, activeNodeById]);
+  }, [components, groupMeta, activeNodeById, createdGroupsList]);
   useEffect(() => {
     groupedRegionsRef.current = groupedRegions;
   }, [groupedRegions]);
@@ -1145,40 +1252,178 @@ function DashboardInvestigator({ token }) {
       return changed ? next : current;
     });
   }, [componentsWithMeta]);
+  // Grouping states for the board
+  const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
+  const [justifyMode, setJustifyMode] = useState('create');
+  const [asociarPor, setAsociarPor] = useState('Modalidad');
+  const [justificacionText, setJustificacionText] = useState('');
+  const [targetGroupForAdd, setTargetGroupForAdd] = useState(null);
+  const [pendingGroupNodes, setPendingGroupNodes] = useState([]);
+
+  const GROUP_COLORS = useMemo(() => [
+    'border-emerald-500 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.25)]',
+    'border-amber-500 bg-amber-950/20 shadow-[0_0_15px_rgba(245,158,11,0.25)]',
+    'border-fuchsia-500 bg-fuchsia-950/20 shadow-[0_0_15px_rgba(217,70,239,0.25)]',
+    'border-rose-500 bg-rose-950/20 shadow-[0_0_15px_rgba(244,63,94,0.25)]',
+    'border-indigo-500 bg-indigo-950/20 shadow-[0_0_15px_rgba(99,102,241,0.25)]',
+    'border-violet-500 bg-violet-950/20 shadow-[0_0_15px_rgba(139,92,246,0.25)]',
+    'border-teal-500 bg-teal-950/20 shadow-[0_0_15px_rgba(20,184,166,0.25)]',
+  ], []);
+
+  // Decision Flow states
+  const [isDecisionFlowModalOpen, setIsDecisionFlowModalOpen] = useState(false);
+  const [activeDecisionGroupIndex, setActiveDecisionGroupIndex] = useState(0);
+  const [selectedDecisionOptions, setSelectedDecisionOptions] = useState([]);
+  const [decisionJustifications, setDecisionJustifications] = useState({});
+  const [decisionFlowCompleted, setDecisionFlowCompleted] = useState(false);
+
+  const DECISION_OPTIONS = useMemo(() => [
+    { id: 1, label: '1. Orden a la Policía Judicial.', question: '¿Qué actividad ordenará la Policía Judicial?' },
+    { id: 2, label: '2. Orden de archivo.', question: '¿Por qué se ordenará el archivo del caso?' },
+    { id: 3, label: '3. Solicitud de audiencia ante juez de control de garantías.', question: '¿Qué solicitud de audiencia se presentará ante el juez?' },
+    { id: 4, label: '4. Priorizar investigación.', question: '¿Cuáles son los criterios para priorizar la investigación?' },
+    { id: 5, label: '5. Caracterización de víctimas.', question: '¿Por qué debe caracterizarse a las víctimas?' },
+    { id: 6, label: '6. Fenómeno Criminal', question: '¿Cómo se define el Fenómeno Criminal en esta decisión?' },
+    { id: 7, label: '7. Otro.', question: '¿Qué otra acción se tomará y por qué?' },
+  ], []);
+
+  const startDecisionFlow = () => {
+    if (createdGroupsList.length === 0) {
+      setError('Debes crear al menos un grupo en procesos del despacho o en el tablero antes de tomar decisiones.');
+      return;
+    }
+    setActiveDecisionGroupIndex(0);
+    setSelectedDecisionOptions([]);
+    setDecisionJustifications({});
+    setDecisionFlowCompleted(false);
+    setIsDecisionFlowModalOpen(true);
+  };
+
+  const handleOptionToggle = (optionId) => {
+    setSelectedDecisionOptions((prev) =>
+      prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId]
+    );
+  };
+
+  const handleJustificationChange = (optionId, text) => {
+    setDecisionJustifications((prev) => ({
+      ...prev,
+      [optionId]: text
+    }));
+  };
+
+  const handleNextDecisionGroup = () => {
+    if (selectedDecisionOptions.length === 0) {
+      alert('Por favor selecciona al menos una opción antes de continuar.');
+      return;
+    }
+    
+    for (const optId of selectedDecisionOptions) {
+      if (!decisionJustifications[optId] || !decisionJustifications[optId].trim()) {
+        alert('Por favor rellena la justificación para todas las opciones seleccionadas.');
+        return;
+      }
+    }
+
+    if (activeDecisionGroupIndex < createdGroupsList.length - 1) {
+      setActiveDecisionGroupIndex((prev) => prev + 1);
+      setSelectedDecisionOptions([]);
+      setDecisionJustifications({});
+    } else {
+      setDecisionFlowCompleted(true);
+    }
+  };
 
   const onNodeClick = (nodeId) => {
     if (investigationFinished || validationResult) {
       return;
     }
-
     setError('');
+
+    // If already selected, deselect
     if (selectedNodeIds.includes(nodeId)) {
       setSelectedNodeIds((current) => current.filter((id) => id !== nodeId));
-      return;
-    }
-
-    if (selectedNodeIds.length >= 2) {
-      setSelectedNodeIds([nodeId]);
       return;
     }
 
     const nextSelection = [...selectedNodeIds, nodeId];
     setSelectedNodeIds(nextSelection);
 
-    if (nextSelection.length >= 2) {
-      const candidateEdge = { a: nextSelection[0], b: nextSelection[1] };
-      const key = getPairKey(candidateEdge.a, candidateEdge.b);
+    if (nextSelection.length === 2) {
+      const [nodeA, nodeB] = nextSelection;
+      setSelectedNodeIds([]); // Clear selection
 
-      if (connections.some((currentEdge) => getPairKey(currentEdge.a, currentEdge.b) === key)) {
-        setSelectedNodeIds([]);
+      const groupA = createdGroupsList.find((g) => g.caseIds.includes(nodeA));
+      const groupB = createdGroupsList.find((g) => g.caseIds.includes(nodeB));
+
+      if (groupA && groupB) {
+        if (groupA.id === groupB.id) {
+          setError('Ambos casos ya pertenecen al mismo grupo.');
+        } else {
+          setError('Ambos casos ya pertenecen a grupos diferentes.');
+        }
         return;
       }
 
-      setPendingConnection(candidateEdge);
-      setConnectionJustificationDraft('');
-      setIsConnectionModalOpen(true);
-      setSelectedNodeIds([]);
+      // Case 1: Both are free -> Create a new group
+      if (!groupA && !groupB) {
+        setJustifyMode('create');
+        setPendingGroupNodes([nodeA, nodeB]);
+        setAsociarPor('Modalidad');
+        setJustificacionText('');
+        setIsJustifyModalOpen(true);
+        return;
+      }
+
+      // Case 2: One is in a group, one is free -> Add to existing group
+      const targetGroup = groupA || groupB;
+      const freeNode = groupA ? nodeB : nodeA;
+
+      setJustifyMode('add');
+      setTargetGroupForAdd(targetGroup);
+      setPendingGroupNodes([freeNode]);
+      setAsociarPor('Modalidad');
+      setJustificacionText('');
+      setIsJustifyModalOpen(true);
     }
+  };
+
+  const handleConfirmGroupJustification = () => {
+    const guardarGrupos = useAuthStore.getState().guardarGrupos;
+
+    if (justifyMode === 'create') {
+      const newGroupId = `group-${Date.now()}`;
+      const newGroup = {
+        id: newGroupId,
+        name: `Grupo ${createdGroupsList.length + 1}`,
+        color: GROUP_COLORS[createdGroupsList.length % GROUP_COLORS.length],
+        caseIds: [...pendingGroupNodes],
+        asociarPor,
+        justificacion: justificacionText
+      };
+      const updatedGroups = [...createdGroupsList, newGroup];
+      guardarGrupos(updatedGroups);
+    } else if (justifyMode === 'add' && targetGroupForAdd) {
+      const updatedGroups = createdGroupsList.map((g) => {
+        if (g.id === targetGroupForAdd.id) {
+          const newIds = [...g.caseIds];
+          pendingGroupNodes.forEach(id => {
+            if (!newIds.includes(id)) newIds.push(id);
+          });
+          return {
+            ...g,
+            caseIds: newIds,
+            asociarPor,
+            justificacion: g.justificacion 
+              ? `${g.justificacion}\n[Anexo]: ${justificacionText}` 
+              : justificacionText
+          };
+        }
+        return g;
+      });
+      guardarGrupos(updatedGroups);
+    }
+    setIsJustifyModalOpen(false);
   };
 
   const closeConnectionJustificationModal = () => {
@@ -2093,46 +2338,22 @@ function DashboardInvestigator({ token }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Modo fiscal</p>
-                <h1 className="mt-1 font-mono text-lg font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
-                <p className="mt-1 text-xs text-slate-400">Tiempo investigando: <span className="font-mono text-cyan-200">{formatSeconds(elapsedSeconds)}</span></p>
+                <h1 className="mt-1 font-mono text-xl font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={restartInvestigation}
-                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
-                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiPlay className="inline-block -translate-y-[1px]" size={14} /> Reiniciar investigación
-                </button>
-                <button
-                  type="button"
-                  onClick={finishInvestigation}
-                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing || savingFeedback}
-                  className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiSave className="inline-block -translate-y-[1px]" size={14} /> {finishing ? 'Terminando...' : 'Terminar investigación'}
-                </button>
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Alarming Timer Badge */}
+                <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-800 via-red-600 to-rose-700 px-6 py-2.5 font-mono text-sm md:text-base font-black tracking-widest text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] border-2 border-red-400/80 animate-pulse scale-105">
+                  <FiAlertTriangle className="text-white animate-bounce shrink-0" size={18} />
+                  <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+                    TIEMPO LÍMITE: {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => setActiveSection('lobby')}
-                  className="rounded-lg border border-slate-500/30 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/50 hover:text-white"
+                  className="rounded-lg border border-cyan-500/30 bg-cyan-950/60 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-900/50 hover:text-white"
                 >
-                  Ir al Despacho
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection('casos')}
-                  className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-                >
-                  Gestión de casos
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
-                >
-                  Cerrar sesion
+                  ← Volver
                 </button>
               </div>
             </div>
@@ -2145,253 +2366,410 @@ function DashboardInvestigator({ token }) {
             </div>
           )}
 
-          <div className="grid h-[calc(100%-56px)] grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
-            <div ref={boardRef} className="relative h-full overflow-hidden rounded-xl border border-cyan-500/20 bg-slate-950/60">
-              <svg className="pointer-events-none absolute inset-0 h-full w-full">
-                {groupedRegions.map((region) => (
-                  <g key={region.key}>
-                    <rect
-                      x={region.x}
-                      y={region.y}
-                      width={region.width}
-                      height={region.height}
-                      rx="28"
-                      ry="28"
-                      fill={hexToRgba(region.color, 0.06)}
-                      stroke={hexToRgba(region.color, 0.45)}
-                      strokeDasharray="8 6"
-                      strokeWidth="1.5"
-                    />
-                    <text
-                      x={region.x + 18}
-                      y={region.y + 26}
-                      fill={region.color}
-                      fontSize="13"
-                      fontWeight="700"
-                      letterSpacing="0.14em"
-                    >
-                      {region.name.toUpperCase()}
-                    </text>
-                  </g>
-                ))}
-
-                {activeConnections.map((edge) => {
-                  const source = activeNodeById.get(edge.a);
-                  const target = activeNodeById.get(edge.b);
-                  if (!source || !target) {
-                    return null;
-                  }
-                  const pairKey = getPairKey(edge.a, edge.b);
-                  const isConexado = !!disagreementReasons[pairKey] && disagreementReasons[pairKey].trim() !== '';
-                  return (
-                    <line
-                      key={pairKey}
-                      x1={source.x}
-                      y1={source.y}
-                      x2={target.x}
-                      y2={target.y}
-                      stroke={isConexado ? "#fbbf24" : "#94a3b8"}
-                      strokeWidth={isConexado ? "3" : "2"}
-                      opacity={isConexado ? "0.9" : "0.5"}
-                      strokeDasharray={isConexado ? "none" : "5, 5"}
-                    />
-                  );
-                })}
-              </svg>
-
-              {activeNodes.map((node) => (
-                (() => {
-                  const caseItem = carpetas.find((c) => c.id === node.id);
-                  return (
-                    <button
-                      key={node.id}
-                      type="button"
-                      onClick={() => onNodeClick(node.id)}
-                      title={`${caseItem?.tipo_delito || 'Caso'} | Radicado: ${caseItem?.nombre?.replace("Caso ", "")}`}
-                      className={`absolute flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border text-center text-[10px] font-semibold leading-tight transition p-2 ${
-                        selectedNodeIds.includes(node.id)
-                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.5)]'
-                          : 'border-cyan-500/30 bg-slate-950/90 text-white hover:border-cyan-400 hover:brightness-110 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
-                      }`}
-                      style={{
-                        left: node.x,
-                        top: node.y,
-                      }}
-                    >
-                      <span className="font-mono text-[9px] font-bold text-cyan-300">
-                        {caseItem?.nombre?.replace("Caso ", "")}
-                      </span>
-                      <span className="text-[8px] text-slate-300 line-clamp-2 capitalize mt-0.5">
-                        {caseItem?.tipo_delito || 'Caso'}
-                      </span>
-                    </button>
-                  );
-                })()
-              ))}
-            </div>
-
-            <div className="h-full space-y-3 overflow-y-auto rounded-xl border border-slate-500/20 bg-slate-950/60 p-3">
-              <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100">
-                Las conexiones se confirman con una justificación en modal. Esa justificación se guarda en el feedback final.
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Conexiones ({activeConnections.length})</p>
-                <div className="mt-2 space-y-1">
-                  {activeConnections.length === 0 ? (
-                    <p className="text-xs text-slate-400">Aun no hay enlaces creados.</p>
-                  ) : (
-                    activeConnections.map((edge) => {
-                      const key = getPairKey(edge.a, edge.b);
-                      const isConexado = !!disagreementReasons[key] && disagreementReasons[key].trim() !== '';
-                      const source = carpetas.find((caseItem) => caseItem.id === edge.a);
-                      const target = carpetas.find((caseItem) => caseItem.id === edge.b);
-                      return (
-                        <div key={key} className="rounded border border-slate-500/20 bg-slate-900/70 px-2 py-2 text-xs">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`text-slate-200 ${isConexado ? 'text-amber-200 font-semibold' : ''}`}>
-                              {source?.nombre || edge.a} - {target?.nombre || edge.b}
-                            </span>
-                            {!investigationFinished && (
-                              <button
-                                type="button"
-                                onClick={() => removeConnection(key)}
-                                className="text-red-300 hover:text-red-200"
-                              >
-                                quitar
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="mt-2">
-                            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Justificación de asociación</p>
-                            <p className="mt-1 rounded border border-slate-500/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100">
-                              {disagreementReasons[key] || 'Sin justificación registrada.'}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+          <div className="grid h-[calc(100%-56px)] grid-cols-1 gap-4 xl:grid-cols-[1fr_340px] relative">
+            <div 
+              ref={boardRef}
+              onMouseDown={handleBoardMouseDown}
+              onMouseMove={handleBoardMouseMove}
+              onMouseUp={handleBoardMouseUp}
+              onMouseLeave={handleBoardMouseUp}
+              onWheel={handleBoardWheel}
+              className="relative h-full overflow-hidden rounded-xl border border-cyan-500/20 bg-slate-950/60 cursor-grab active:cursor-grabbing select-none"
+            >
+              {/* Zoom/Pan Floating Controls */}
+              <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 rounded-lg bg-slate-950/80 p-1.5 border border-slate-800 backdrop-blur-md" onMouseDown={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => setBoardZoom(prev => Math.min(prev + 0.15, 2.0))}
+                  title="Acercar"
+                  className="p-2 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition"
+                >
+                  <FiPlus size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBoardZoom(prev => Math.max(prev - 0.15, 0.3))}
+                  title="Alejar"
+                  className="p-2 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition"
+                >
+                  <FiMinus size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBoardZoom(0.85); setBoardPan({ x: 10, y: 10 }); }}
+                  title="Restablecer"
+                  className="p-1.5 px-3 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition font-mono text-[11px] font-bold"
+                >
+                  Reset
+                </button>
+                <span className="px-2 font-mono text-[11px] text-slate-400">{Math.round(boardZoom * 100)}%</span>
               </div>
 
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Grupos detectados</p>
-                <div className="mt-2 space-y-2">
-                  {componentsWithMeta.length === 0 ? (
-                    <p className="text-xs text-slate-400">Selecciona 2 casos para crear un grupo completo.</p>
-                  ) : (
-                    componentsWithMeta.map((group) => (
-                      <div
-                        key={group.key}
-                        className="rounded border p-2"
+              {/* Inner Zoom/Pan Canvas */}
+              <div
+                className="absolute inset-0 origin-top-left transition-transform duration-75"
+                style={{
+                  transform: `translate(${boardPan.x}px, ${boardPan.y}px) scale(${boardZoom})`,
+                  width: '2800px',
+                  height: '2200px',
+                }}
+              >
+                <svg className="pointer-events-none absolute inset-0 w-full h-full" style={{ width: '2800px', height: '2200px' }}>
+                  {groupedRegions.map((region) => (
+                    <g key={region.key}>
+                      <rect
+                        x={region.x}
+                        y={region.y}
+                        width={region.width}
+                        height={region.height}
+                        rx="28"
+                        ry="28"
+                        fill={hexToRgba(region.color, 0.06)}
+                        stroke={hexToRgba(region.color, 0.45)}
+                        strokeDasharray="8 6"
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x={region.x + 12}
+                        y={region.y - 10}
+                        fill={region.color}
+                        fontSize="13"
+                        fontWeight="700"
+                        letterSpacing="0.14em"
+                      >
+                        {region.name.toUpperCase()}
+                      </text>
+                    </g>
+                  ))}
+
+                  {activeConnections.map((edge) => {
+                    const source = activeNodeById.get(edge.a);
+                    const target = activeNodeById.get(edge.b);
+                    if (!source || !target) {
+                      return null;
+                    }
+                    const pairKey = getPairKey(edge.a, edge.b);
+                    const isConexado = !!disagreementReasons[pairKey] && disagreementReasons[pairKey].trim() !== '';
+                    return (
+                      <line
+                        key={pairKey}
+                        x1={source.x}
+                        y1={source.y}
+                        x2={target.x}
+                        y2={target.y}
+                        stroke={isConexado ? "#fbbf24" : "#94a3b8"}
+                        strokeWidth={isConexado ? "3" : "2"}
+                        opacity={isConexado ? "0.9" : "0.5"}
+                        strokeDasharray={isConexado ? "none" : "5, 5"}
+                      />
+                    );
+                  })}
+                </svg>
+
+                {activeNodes.map((node) => (
+                  (() => {
+                    const caseItem = carpetas.find((c) => c.id === node.id);
+                    return (
+                      <button
+                        key={node.id}
+                        type="button"
+                        onClick={() => onNodeClick(node.id)}
+                        title={`${caseItem?.tipo_delito || 'Caso'} | Radicado: ${caseItem?.nombre?.replace("Caso ", "")}`}
+                        className={`absolute flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border text-center text-[10px] font-semibold leading-tight transition p-2 ${
+                          selectedNodeIds.includes(node.id)
+                            ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.5)]'
+                            : 'border-cyan-500/30 bg-slate-950/90 text-white hover:border-cyan-400 hover:brightness-110 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
+                        }`}
                         style={{
-                          borderColor: hexToRgba(group.color, 0.35),
-                          backgroundColor: hexToRgba(group.color, 0.12),
+                          left: node.x,
+                          top: node.y,
                         }}
                       >
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                          Grupo {group.index + 1}
-                        </p>
-                        <div className="mt-2">
-                          <label className="text-[11px] text-slate-300">Asociación</label>
-                          <select
-                            disabled={investigationFinished}
-                            value={groupMeta[group.key]?.relationType || group.relationType}
-                            onChange={(event) => updateGroupMeta(group.key, { relationType: event.target.value })}
-                            className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                          >
-                            <option value="modalidad">Asociado por modalidad</option>
-                            <option value="patrones">Asociado por patron</option>
-                          </select>
-                        </div>
-                        <div className="mt-2">
-                          <label className="text-[11px] text-slate-300">Justificación</label>
-                          <textarea
-                            rows="3"
-                            disabled={investigationFinished}
-                            value={groupJustifications[group.key] || ''}
-                            onChange={(event) =>
-                              setGroupJustifications((current) => ({
-                                ...current,
-                                [group.key]: event.target.value,
-                              }))
-                            }
-                            className="mt-1 w-full rounded border border-slate-500/20 bg-slate-900/70 px-2 py-1 text-xs text-slate-100 outline-none"
-                            placeholder="Describe por qué esta asociación es válida para el grupo detectado"
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                        <span className="font-mono text-[9px] font-bold text-cyan-300">
+                          {caseItem?.nombre?.replace("Caso ", "")}
+                        </span>
+                        <span className="text-[8px] text-slate-300 line-clamp-2 capitalize mt-0.5">
+                          {caseItem?.tipo_delito || 'Caso'}
+                        </span>
+                      </button>
+                    );
+                  })()
+                ))}
               </div>
+            </div>
 
-              {validationResult && (
-                <div className="space-y-2 border-t border-slate-600/30 pt-2">
-                  <div className="rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                    Esta prueba ya fue presentada. Puedes revisar el resultado en el modal y descargar tu PDF.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsFeedbackModalOpen(true)}
-                    className="w-full rounded border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
-                  >
-                    Abrir feedback
-                  </button>
+            {/* Right Column: Tomar decisiones & Action controls */}
+            <div className="h-full flex flex-col justify-between gap-4">
+              <button
+                type="button"
+                onClick={startDecisionFlow}
+                className="flex-1 w-full rounded-xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950/60 to-slate-900/80 p-6 flex flex-col items-center justify-center text-center space-y-4 hover:border-cyan-400/80 group transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms]" />
+                <span className="font-mono text-base md:text-lg font-bold tracking-[0.2em] text-cyan-300 group-hover:text-cyan-200 uppercase">
+                  Tomar decisiones
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  Definir acciones para los grupos
+                </span>
+                <div className="text-3xl text-cyan-400 group-hover:translate-x-3 transition-transform duration-300 ease-out">
+                  ➔
                 </div>
-              )}
+              </button>
+
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={restartInvestigation}
+                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
+                  className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reiniciar
+                </button>
+                <button
+                  type="button"
+                  onClick={finishInvestigation}
+                  disabled={Boolean(validationResult) || feedbackSubmitted || finishing || savingFeedback}
+                  className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {finishing ? 'Guardando...' : 'Evaluar'}
+                </button>
+              </div>
             </div>
           </div>
         </main>
       </div>
 
-      {isConnectionModalOpen && pendingConnection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-5 shadow-[0_0_45px_rgba(8,145,178,0.28)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Justificar asociación</p>
-                <p className="mt-1 font-mono text-lg text-slate-100">{formatPairLabel(getPairKey(pendingConnection.a, pendingConnection.b), caseNameById)}</p>
+      {isDecisionFlowModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-5xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
+            
+            {decisionFlowCompleted ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-6">
+                <div className="h-16 w-16 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-3xl animate-bounce">
+                  ✓
+                </div>
+                <div>
+                  <h3 className="font-mono text-xl font-bold text-slate-100 uppercase tracking-widest">
+                    Decisiones Completadas
+                  </h3>
+                  <p className="text-sm text-slate-400 mt-2 font-mono">
+                    Ya has tomado decisiones de todos los grupos creados en el despacho.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDecisionFlowModalOpen(false)}
+                  className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-8 py-3 text-sm font-bold text-cyan-200 transition font-mono"
+                >
+                  Entendido
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={closeConnectionJustificationModal}
-                className="rounded-lg border border-slate-500/30 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700/40"
-              >
-                Cerrar
-              </button>
+            ) : (
+              (() => {
+                const currentGroup = createdGroupsList[activeDecisionGroupIndex];
+                if (!currentGroup) return null;
+                return (
+                  <>
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-cyan-300 font-mono">
+                          Toma de decisiones • Grupo {activeDecisionGroupIndex + 1} de {createdGroupsList.length}
+                        </p>
+                        <h2 className="font-mono text-lg font-bold text-slate-100 capitalize mt-1">
+                          {currentGroup.name}
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsDecisionFlowModalOpen(false)}
+                        className="rounded-lg border border-slate-700/60 p-1.5 text-slate-400 hover:text-white transition"
+                      >
+                        <FiX size={20} />
+                      </button>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto pr-1">
+                      {/* Left Column: Decisions & Questions */}
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="font-mono text-base font-bold text-slate-100">
+                            ¿Qué vas a decidir ahora?
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1 font-mono">
+                            Selecciona una o más opciones y justifica cada decisión:
+                          </p>
+                        </div>
+
+                        <div className="space-y-4">
+                          {DECISION_OPTIONS.map((opt) => {
+                            const isChecked = selectedDecisionOptions.includes(opt.id);
+                            return (
+                              <div key={opt.id} className="space-y-2">
+                                <label className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleOptionToggle(opt.id)}
+                                    className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                                  />
+                                  <span className="font-mono text-xs leading-relaxed">{opt.label}</span>
+                                </label>
+
+                                {isChecked && (
+                                  <div className="pl-7 animate-welcome-zoom">
+                                    <p className="text-xs font-bold text-cyan-300 font-mono mb-1.5">
+                                      {opt.question}
+                                    </p>
+                                    <textarea
+                                      rows={2}
+                                      value={decisionJustifications[opt.id] || ''}
+                                      onChange={(e) => handleJustificationChange(opt.id, e.target.value)}
+                                      placeholder="Escribe la justificación de esta decisión..."
+                                      className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Right Column: Group Info panel */}
+                      <div className="rounded-xl border border-slate-800 bg-[#02050b]/60 p-5 space-y-4 h-fit">
+                        <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 border-b border-slate-800 pb-2">
+                          Información General del Grupo
+                        </h4>
+
+                        <div className="space-y-3 font-mono text-xs">
+                          <div>
+                            <span className="text-slate-500">Criterio de asociación:</span>
+                            <p className="text-slate-200 mt-1">{currentGroup.asociarPor || 'No especificado'}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-500">Justificación inicial:</span>
+                            <p className="text-slate-200 mt-1 whitespace-pre-wrap leading-relaxed">
+                              {currentGroup.justificacion || 'Sin justificación previa registrada.'}
+                            </p>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-500 block mb-2">Miembros del grupo:</span>
+                            <div className="space-y-1.5 pl-2 border-l border-cyan-500/20">
+                              {(currentGroup.caseIds || []).map((caseId) => {
+                                const c = carpetas.find(item => item.id === caseId);
+                                if (!c) return null;
+                                return (
+                                  <div key={caseId} className="text-slate-300 flex items-center gap-2">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                                    <span>Radicado: {c.nombre.replace("Caso ", "")}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setIsDecisionFlowModalOpen(false)}
+                        className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNextDecisionGroup}
+                        className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg font-mono"
+                      >
+                        {activeDecisionGroupIndex < createdGroupsList.length - 1 ? 'Siguiente Grupo' : 'Aceptar'}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()
+            )}
+          </div>
+        </div>
+      )}
+
+      {isJustifyModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4 py-8 backdrop-blur-sm animate-welcome-zoom">
+          <div className="w-full max-w-md rounded-2xl border border-cyan-500/20 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider mb-1">
+              Justificar Asociación Múltiple
+            </h3>
+            <p className="text-xs text-slate-400 mb-6 font-mono">
+              Se creará una relación en cadena para los casos seleccionados.
+            </p>
+
+            <div className="space-y-4">
+              {/* Target Group (Only shown in 'add' mode) */}
+              {justifyMode === 'add' && targetGroupForAdd && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                    Grupo de destino:
+                  </label>
+                  <div className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-300 font-mono capitalize">
+                    {targetGroupForAdd.name}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                  Asociar por:
+                </label>
+                <select
+                  value={asociarPor}
+                  onChange={(e) => setAsociarPor(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
+                >
+                  <option value="Modalidad">Modalidad</option>
+                  <option value="Modus operandi">Modus operandi</option>
+                  <option value="Patrón">Patrón</option>
+                  <option value="Criterio de Conexidad">Criterio de Conexidad</option>
+                  <option value="Fenómeno criminal">Fenómeno criminal</option>
+                  <option value="Otros">Otros</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                  Justificación:
+                </label>
+                <textarea
+                  value={justificacionText}
+                  onChange={(e) => setJustificacionText(e.target.value)}
+                  placeholder="Escribe los detalles de la asociación..."
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
+                />
+              </div>
             </div>
 
-            <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
-              La conexión se agregará al tablero cuando guardes esta justificación.
-            </div>
-
-            <div className="mt-4">
-              <label className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Justificación</label>
-              <textarea
-                rows="4"
-                value={connectionJustificationDraft}
-                onChange={(event) => setConnectionJustificationDraft(event.target.value)}
-                className="mt-2 w-full rounded border border-slate-500/20 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none"
-                placeholder="Explica por qué estos dos casos deben asociarse"
-              />
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2">
+            <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
-                onClick={confirmPendingConnection}
-                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-              >
-                Guardar y conectar
-              </button>
-              <button
-                type="button"
-                onClick={closeConnectionJustificationModal}
-                className="rounded-lg border border-slate-500/30 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/40"
+                onClick={() => setIsJustifyModalOpen(false)}
+                className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition shadow-md font-mono"
               >
                 Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmGroupJustification}
+                className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-5 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg shadow-cyan-950/20 font-mono"
+              >
+                Confirmar
               </button>
             </div>
           </div>
