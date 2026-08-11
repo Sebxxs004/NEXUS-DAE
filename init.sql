@@ -149,11 +149,11 @@ CREATE INDEX idx_documentos_created_by ON documentos(created_by);
 
 -- Insertar usuario admin por defecto (contraseña: admin123)
 INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES
-  ('Admin PRISMA', 'admin@prisma.dae', '$2a$10$s6yQpoOpta7funCAvjN9Du0vmfL1gPTKiIdbioiqsxZ7j.mWTLiyi', 1);
+  ('Admin NEXUS', 'admin@nexus.dae', '$2a$10$s6yQpoOpta7funCAvjN9Du0vmfL1gPTKiIdbioiqsxZ7j.mWTLiyi', 1);
 
 -- Insertar usuario investigador de prueba (contraseña: investigador123)
 INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES
-  ('Investigador PRISMA', 'investigador@prisma.dae', '$2a$10$FKHCQXc7XFTROoLbl0aafuevadc.P1WuDQKOnmT8PZWszPqJed9l.', 2);
+  ('Investigador NEXUS', 'investigador@nexus.dae', '$2a$10$FKHCQXc7XFTROoLbl0aafuevadc.P1WuDQKOnmT8PZWszPqJed9l.', 2);
 
 -- Casos de prueba para mostrar el juego
 INSERT INTO carpetas (nombre, descripcion, imagen_url, modalidad, patrones, es_aislado, created_by)
@@ -165,7 +165,7 @@ VALUES
     'fraude interno',
     'facturas alteradas, piezas duplicadas, mismos proveedores',
     FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     'Caso B - Almacen nocturno',
@@ -174,7 +174,7 @@ VALUES
     'fraude interno',
     'turnos nocturnos, acceso repetido, inventario faltante',
     FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     'Caso C - Oficina de cuentas',
@@ -183,7 +183,7 @@ VALUES
     'fraude financiero',
     'cuentas puente, transferencias similares, beneficiarios coincidentes',
     FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   );
 
 INSERT INTO documentos (carpeta_id, nombre, descripcion, archivo_url, created_by)
@@ -193,21 +193,21 @@ VALUES
     'Informe inicial del taller',
     'Resumen del peritaje y lista de proveedores revisados.',
     'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1),
     'Parte de inventario nocturno',
     'Detalle de accesos y movimientos irregulares.',
     'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
     'Registro de transferencias',
     'Extractos y cuentas puente asociadas a las transferencias.',
     'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   );
 
 INSERT INTO grupos_asociacion (nombre, justificacion_general, created_by)
@@ -215,7 +215,7 @@ VALUES
   (
     'Grupo de desvio operativo',
     'Los tres casos comparten proveedores, movimientos nocturnos y un mismo patron de desvio.',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   );
 
 INSERT INTO grupos_asociacion_casos (grupo_id, carpeta_id)
@@ -241,7 +241,7 @@ VALUES
     (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1),
     'patrones',
     'Ambos casos muestran movimientos fuera de horario y proveedores recurrentes.',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
@@ -249,7 +249,7 @@ VALUES
     (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
     'patrones',
     'Las transferencias y las facturas alteradas apuntan al mismo circuito de desvio.',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   ),
   (
     (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
@@ -257,5 +257,5 @@ VALUES
     (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
     'patrones',
     'Las entradas de inventario y los pagos puente comparten el mismo horario y beneficiarios.',
-    (SELECT id FROM usuarios WHERE email = 'admin@prisma.dae' LIMIT 1)
+    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   );
