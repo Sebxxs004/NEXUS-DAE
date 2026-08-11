@@ -622,7 +622,7 @@ Este software es de **uso exclusivo interno** de la Fiscalía General de la Naci
 
 **JUAN SEBASTIAN CANO VASQUEZ**
 
-*Desarrollador Full-Stack*
+*AUXILIAR I*
 
 ---
 
