@@ -630,7 +630,7 @@ Este software es de **uso exclusivo interno** de la Fiscalía General de la Naci
 
 **Fiscalía General de la Nación**
 
-Dirección de Análisis y Estrategia (DAE)
+Dirección de Altos Estudios (DAE)
 
 Colombia · 2026
 
