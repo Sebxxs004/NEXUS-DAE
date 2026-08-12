@@ -32,6 +32,7 @@ app.use('/api/conexiones', require('./routes/conexiones'));
 app.use('/api/grupos-asociacion', require('./routes/gruposAsociacion'));
 app.use('/api/admin', require('./routes/adminInvestigators'));
 app.use('/api/configuracion', require('./routes/configuracion'));
+app.use('/api/eventos-despacho', require('./routes/eventosDespacho'));
 
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));

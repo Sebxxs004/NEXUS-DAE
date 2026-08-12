@@ -38,6 +38,7 @@ function CasesSidebarModule({
   onOpenCaseDetails,
   onSwitchToBoard,
   onSwitchToLobby,
+  investigationFinished,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDelito, setSelectedDelito] = useState('Todos');
@@ -375,7 +376,7 @@ function CasesSidebarModule({
             <span className="font-mono text-xs text-slate-300">
               ⚡ {selectedCaseIds.length} seleccionados:
             </span>
-            {selectedCaseIds.length >= 2 && (
+            {selectedCaseIds.length >= 2 && !investigationFinished && (
               <button
                 onClick={handleOpenCreateModal}
                 className="rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white transition hover:bg-cyan-500 shadow-md shadow-cyan-950/30"
@@ -383,7 +384,7 @@ function CasesSidebarModule({
                 Crear grupo
               </button>
             )}
-            {selectedCaseIds.length >= 1 && createdGroups.length > 0 && (
+            {selectedCaseIds.length >= 1 && createdGroups.length > 0 && !investigationFinished && (
               <button
                 onClick={handleOpenAddModal}
                 className="rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white transition hover:bg-cyan-500 shadow-md shadow-cyan-950/30"
@@ -397,7 +398,7 @@ function CasesSidebarModule({
             >
               Cancelar selección
             </button>
-            {createdGroups.length > 0 && (
+            {createdGroups.length > 0 && !investigationFinished && (
               <button
                 onClick={handleResetGroups}
                 className="ml-auto rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 font-mono text-xs text-red-300 transition hover:bg-red-500/20 hover:text-white"
@@ -458,7 +459,7 @@ function CasesSidebarModule({
                         <div className="absolute top-3 left-3 z-10 bg-slate-950/80 p-1.5 rounded-lg border border-slate-700/50 backdrop-blur-sm">
                           <input
                             type="checkbox"
-                            disabled={Boolean(cardGroup)}
+                            disabled={Boolean(cardGroup) || investigationFinished}
                             checked={selectedCaseIds.includes(caseItem.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
@@ -579,9 +580,11 @@ function CasesSidebarModule({
                               type="button"
                               onClick={(e) => {
                                   e.stopPropagation();
+                                  if (investigationFinished) return;
                                   setEditingGroupId(group.id);
                                   setEditGroupName(group.name);
                               }}
+                              disabled={investigationFinished}
                               title="Editar nombre"
                               className="opacity-0 group-hover/folder:opacity-100 p-0.5 hover:bg-slate-800 hover:text-cyan-400 rounded transition ml-1 shrink-0"
                             >
@@ -611,17 +614,19 @@ function CasesSidebarModule({
                                   <FiFileText size={12} className="text-cyan-400" />
                                   <span className="truncate">Radicado: {c.nombre.replace("Caso ", "")}</span>
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveFromGroup(group.id, caseId);
-                                  }}
-                                  title="Eliminar del grupo"
-                                  className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition"
-                                >
-                                  <FiX size={12} />
-                                </button>
+                                {!investigationFinished && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveFromGroup(group.id, caseId);
+                                    }}
+                                    title="Eliminar del grupo"
+                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition"
+                                  >
+                                    <FiX size={12} />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}

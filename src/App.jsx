@@ -13,6 +13,38 @@ function App() {
     setSessionRestored(true);
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const INACTIVITY_LIMIT = 60 * 60 * 1000; // 1 hour in ms
+    let timeoutId;
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        const logout = useAuthStore.getState().logout;
+        logout();
+        alert("Tu sesión ha expirado tras 1 hora de inactividad.");
+      }, INACTIVITY_LIMIT);
+    };
+
+    // Listen to user events
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
+    window.addEventListener('scroll', resetTimer);
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      window.removeEventListener('scroll', resetTimer);
+    };
+  }, [isAuthenticated]);
+
   if (!sessionRestored) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-investigation-bg">

@@ -174,6 +174,30 @@ function InvestigatorsManagementPage({ token, onBack }) {
     }
   };
 
+  const handleReactivateInvestigator = async (investigator) => {
+    const confirmReactivate = window.confirm(`¿Está seguro de que desea reactivar la investigación de ${investigator.nombre} sin perder sus grupos ni radicados creados?`);
+    if (!confirmReactivate) return;
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.patch(
+        `${API_URL}/admin/investigadores/${investigator.id}/reactivar`,
+        {},
+        { headers: authHeaders }
+      );
+      setSuccess(`La investigación de ${investigator.nombre} ha sido reactivada. Sus grupos y progresos se conservaron.`);
+      await loadInvestigators();
+    } catch (requestError) {
+      console.error('Error reactivando investigación:', requestError);
+      setError(requestError.response?.data?.error || 'No fue posible reactivar la investigación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-investigation-bg text-slate-100">
       <header className="border-b border-cyan-500/20 bg-panel-dark px-8 py-4 backdrop-blur-md">
@@ -318,19 +342,29 @@ function InvestigatorsManagementPage({ token, onBack }) {
                       )}
                     </div>
                     {!isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => handleResetFirstLogin(investigator)}
-                        disabled={saving}
-                        className={`w-full flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
-                          investigator.primera_vez
-                            ? 'border-slate-500/30 bg-slate-900/40 text-slate-400 cursor-not-allowed'
-                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 shadow-sm'
-                        }`}
-                      >
-                        <FiRefreshCw size={13} className={saving ? 'animate-spin' : ''} />
-                        {investigator.primera_vez ? 'Inducción Pendiente' : 'Reiniciar Inducción'}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleResetFirstLogin(investigator)}
+                          disabled={saving}
+                          className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs transition ${
+                            investigator.primera_vez
+                              ? 'border-slate-500/30 bg-slate-900/40 text-slate-400 cursor-not-allowed'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 shadow-sm'
+                          }`}
+                        >
+                          <FiRefreshCw size={12} className={saving ? 'animate-spin' : ''} />
+                          Inducción
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReactivateInvestigator(investigator)}
+                          disabled={saving || !investigator.feedback_id}
+                          className="flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
+                        >
+                          Reactivar
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

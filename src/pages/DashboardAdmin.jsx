@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
 import InvestigatorsManagementPage from './InvestigatorsManagementPage';
+import DespachoEventsPage from './DespachoEventsPage';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
 const EMPTY_DOCUMENT = { nombre: '', descripcion: '', archivo_url: '' };
@@ -637,6 +638,15 @@ function DashboardAdmin() {
     );
   }
 
+  if (activeSection === 'eventos') {
+    return (
+      <DespachoEventsPage
+        token={token}
+        onBack={() => setActiveSection('casos')}
+      />
+    );
+  }
+
   if (activeSection === 'configuracion') {
     return (
       <div className="min-h-screen bg-investigation-bg text-slate-100 p-8">
@@ -784,6 +794,12 @@ function DashboardAdmin() {
             <p className="font-mono text-xs text-cyan-300/70">Bienvenido {usuario?.nombre}</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+               onClick={() => setActiveSection('eventos')}
+               className="rounded-lg border border-purple-400/30 bg-purple-500/10 px-4 py-2 font-mono text-sm text-purple-200 transition hover:bg-purple-500/20"
+            >
+              Eventos (Alertas/Personas)
+            </button>
             <button
               onClick={() => setActiveSection('configuracion')}
               className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 font-mono text-sm text-cyan-200 transition hover:bg-cyan-500/20"

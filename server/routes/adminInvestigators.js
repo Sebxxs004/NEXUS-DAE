@@ -210,4 +210,21 @@ router.patch('/investigadores/:id/resuelto', authenticate, requireAdmin, async (
   }
 });
 
+router.patch('/investigadores/:id/reactivar', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete the evaluations record which holds the locked/submitted status
+    await pool.query(
+      'DELETE FROM evaluaciones_investigador WHERE usuario_id = $1',
+      [id]
+    );
+
+    return res.json({ success: true, message: 'Investigación reactivada exitosamente preservando grupos y progresos.' });
+  } catch (error) {
+    console.error('Error reactivando investigación:', error);
+    return res.status(500).json({ error: 'No fue posible reactivar la investigación' });
+  }
+});
+
 module.exports = router;
