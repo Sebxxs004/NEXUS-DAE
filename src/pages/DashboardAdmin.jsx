@@ -18,7 +18,7 @@ import useAuthStore from '../store/useAuthStore';
 import InvestigatorsManagementPage from './InvestigatorsManagementPage';
 import DespachoEventsPage from './DespachoEventsPage';
 
-const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
+const API_URL = import.meta.env.DEV ? `http://${window.location.hostname}:5000/api` : (import.meta.env.VITE_API_URL || '/api');
 const EMPTY_DOCUMENT = { nombre: '', descripcion: '', archivo_url: '' };
 const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
 const MAX_DOCUMENT_SIZE_BYTES = 40 * 1024 * 1024;

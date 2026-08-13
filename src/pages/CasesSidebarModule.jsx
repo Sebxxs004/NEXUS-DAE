@@ -39,6 +39,8 @@ function CasesSidebarModule({
   onSwitchToBoard,
   onSwitchToLobby,
   investigationFinished,
+  tutorialStep,
+  setTutorialStep,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDelito, setSelectedDelito] = useState('Todos');
@@ -55,7 +57,47 @@ function CasesSidebarModule({
       return [];
     }
   });
+
+  // Auto select cases during tutorial step 4/5
+  useEffect(() => {
+    if (tutorialStep === 4 || tutorialStep === 5) {
+      if (carpetas.length >= 2) {
+        setSelectedCaseIds([carpetas[0].id, carpetas[1].id]);
+      }
+    } else if (tutorialStep === 3) {
+      setSelectedCaseIds([]);
+    }
+  }, [tutorialStep, carpetas]);
+
+  // Mock group for tutorial visual demonstration
+  const displayGroups = useMemo(() => {
+    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) {
+      if (carpetas.length >= 2) {
+        const mockGroup = {
+          id: 'mock-tutorial-group',
+          name: 'Grupo Criminal 1 (VISTA PREVIA)',
+          caseIds: [carpetas[0].id, carpetas[1].id],
+          color: 'border-emerald-500 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.25)]',
+          asociarPor: 'Modalidad',
+          justificacion: 'Casos asociados por coincidencia de alias y modus operandi en zona sur.'
+        };
+        return [mockGroup, ...createdGroups];
+      }
+    }
+    return createdGroups;
+  }, [createdGroups, tutorialStep, carpetas]);
+
   const [expandedGroupIds, setExpandedGroupIds] = useState([]);
+
+  // Auto expand tutorial mock group
+  useEffect(() => {
+    if (tutorialStep === 8 || tutorialStep === 9) {
+      setExpandedGroupIds(prev => {
+        if (prev.includes('mock-tutorial-group')) return prev;
+        return [...prev, 'mock-tutorial-group'];
+      });
+    }
+  }, [tutorialStep]);
 
   // Inline rename states
   const [editingGroupId, setEditingGroupId] = useState(null);
@@ -372,7 +414,9 @@ function CasesSidebarModule({
 
         {/* Group Actions Bar */}
         {selectedCaseIds.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 bg-slate-950/80 border border-cyan-500/20 p-4 rounded-xl shadow-xl backdrop-blur-md animate-welcome-zoom">
+          <div className={`flex flex-wrap items-center gap-3 bg-slate-950/80 border border-cyan-500/20 p-4 rounded-xl shadow-xl backdrop-blur-md animate-welcome-zoom ${
+            tutorialStep === 5 ? 'relative z-[10000] border-cyan-400 ring-4 ring-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)]' : ''
+          }`}>
             <span className="font-mono text-xs text-slate-300">
               ⚡ {selectedCaseIds.length} seleccionados:
             </span>
@@ -398,7 +442,7 @@ function CasesSidebarModule({
             >
               Cancelar selección
             </button>
-            {createdGroups.length > 0 && !investigationFinished && (
+            {displayGroups.length > 0 && !investigationFinished && (
               <button
                 onClick={handleResetGroups}
                 className="ml-auto rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 font-mono text-xs text-red-300 transition hover:bg-red-500/20 hover:text-white"
@@ -412,7 +456,9 @@ function CasesSidebarModule({
         {/* Main Grid: Cards + Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           {/* Left Column: Cards Grid */}
-          <div className="lg:col-span-3">
+          <div className={`lg:col-span-3 ${
+            (tutorialStep === 3 || tutorialStep === 4) ? 'relative z-[10000] border-2 border-cyan-400 rounded-xl p-2 shadow-[0_0_25px_rgba(6,182,212,0.4)] scale-[1.01] transition-all bg-[#090d16]' : ''
+          }`}>
             {loadingCases ? (
               <div className="flex flex-col items-center justify-center py-20 space-y-3">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
@@ -430,15 +476,19 @@ function CasesSidebarModule({
                   const delito = metadata?.offenseType || caseItem.tipo_delito || 'No especificado';
                   
                   // Group styling logic
-                  const cardGroup = createdGroups.find((g) => g.caseIds.includes(caseItem.id));
+                  const cardGroup = displayGroups.find((g) => g.caseIds.includes(caseItem.id));
                   const cardColorStyle = cardGroup 
                     ? cardGroup.color 
                     : 'border-slate-700/30 bg-slate-950/70 hover:border-cyan-400/40 hover:shadow-cyan-950/10';
 
+                  const isCardHighlighted = (tutorialStep === 7 && cardGroup?.id === 'mock-tutorial-group');
+
                   return (
                     <div
                       key={caseItem.id}
-                      className={`group rounded-xl border overflow-hidden shadow-lg transition-all duration-300 flex flex-col justify-between ${cardColorStyle}`}
+                      className={`group rounded-xl border overflow-hidden shadow-lg transition-all duration-300 flex flex-col justify-between ${cardColorStyle} ${
+                        isCardHighlighted ? 'relative z-[10005] ring-4 ring-cyan-400 scale-[1.03] shadow-[0_0_30px_rgba(6,182,212,0.7)] animate-pulse' : ''
+                      }`}
                     >
                       {/* Case Thumbnail */}
                       <div className="relative h-44 w-full bg-slate-900 overflow-hidden border-b border-slate-800">
@@ -456,7 +506,9 @@ function CasesSidebarModule({
                         )}
                         
                         {/* Top Left Checkbox */}
-                        <div className="absolute top-3 left-3 z-10 bg-slate-950/80 p-1.5 rounded-lg border border-slate-700/50 backdrop-blur-sm">
+                        <div className={`absolute top-3 left-3 z-10 bg-slate-950/80 p-1.5 rounded-lg border border-slate-700/50 backdrop-blur-sm transition-all ${
+                          tutorialStep === 4 ? 'z-[10005] border-cyan-400 ring-2 ring-cyan-400/80 scale-110 shadow-[0_0_15px_rgba(6,182,212,0.5)]' : ''
+                        }`}>
                           <input
                             type="checkbox"
                             disabled={Boolean(cardGroup) || investigationFinished}
@@ -468,7 +520,9 @@ function CasesSidebarModule({
                                 setSelectedCaseIds(selectedCaseIds.filter((id) => id !== caseItem.id));
                               }
                             }}
-                            className="h-4.5 w-4.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className={`h-4.5 w-4.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+                              tutorialStep === 4 ? 'ring-4 ring-cyan-400 scale-125 shadow-[0_0_20px_rgba(6,182,212,0.85)] animate-pulse' : ''
+                            }`}
                           />
                         </div>
 
@@ -508,23 +562,25 @@ function CasesSidebarModule({
           </div>
 
           {/* Right Column: Folder Tree Sidebar */}
-          <aside className="lg:col-span-1 bg-slate-950/60 p-5 rounded-xl border border-cyan-500/20 backdrop-blur-sm shadow-xl flex flex-col space-y-4 h-fit max-h-[75vh] overflow-y-auto">
+          <aside className={`lg:col-span-1 bg-slate-950/60 p-5 rounded-xl border border-cyan-500/20 backdrop-blur-sm shadow-xl flex flex-col space-y-4 h-fit max-h-[75vh] overflow-y-auto ${
+            (tutorialStep === 8 || tutorialStep === 9) ? 'relative z-[10000] border-cyan-400 ring-4 ring-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-[1.02]' : ''
+          }`}>
             <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-cyan-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
               <span>Arquitectura de Grupos</span>
-              {createdGroups.length > 0 && (
+              {displayGroups.length > 0 && (
                 <span className="text-[10px] bg-cyan-950 px-2 py-0.5 rounded text-cyan-300 border border-cyan-500/30">
-                  {createdGroups.length}
+                  {displayGroups.length}
                 </span>
               )}
             </h3>
 
-            {createdGroups.length === 0 ? (
+            {displayGroups.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500 font-mono">
                 No hay grupos creados. Seleccione casos para agruparlos.
               </div>
             ) : (
               <div className="space-y-2">
-                {createdGroups.map((group) => {
+                {displayGroups.map((group) => {
                   const isExpanded = expandedGroupIds.includes(group.id);
                   const isEditing = editingGroupId === group.id;
                   
@@ -805,6 +861,245 @@ function CasesSidebarModule({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Interactive Tutorial Overlays inside CasesSidebarModule */}
+      {tutorialStep >= 3 && tutorialStep <= 9 && (
+        <div className="fixed inset-0 z-[20000] flex flex-col items-center justify-center p-4">
+          {/* Backdrop with no blur to keep screen clean */}
+          <div className={`absolute inset-0 transition-all ${
+            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
+          }`} />
+
+          {/* Tutorial Step Cards */}
+          {tutorialStep === 3 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-12">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-bounce">
+                📂
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Matriz de Casos Cargados
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 3 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Esta es la **Matriz de Casos**. Aquí verás todas las noticias criminales asignadas a tu despacho. Cada tarjeta muestra el delito principal y te permite abrir el expediente para inspeccionar los documentos.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(4)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 4 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-12">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ☑
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Selección de Casos
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 4 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Puedes seleccionar casos que consideres que deben ir agrupados marcando las casillas de verificación en la esquina superior izquierda de cada tarjeta. **(Hemos seleccionado los dos primeros radicados como demostración)**.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(5)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 5 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-12">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ⚡
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Crear un Grupo Nuevo
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 5 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Al seleccionar dos o más casos, la **Barra de Acciones** aparece arriba. Al hacer clic en el botón de **'Crear grupo'**, procederás a justificar la asociación de estos expedientes.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(6)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 6 && (
+            <div className="relative w-full max-w-4xl rounded-2xl border-2 border-cyan-400 bg-[#070b13] p-6 shadow-[0_0_40px_rgba(6,182,212,0.4)] animate-welcome-zoom z-[10001] grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+              {/* Left Column: Instructions Tooltip inside the modal */}
+              <div className="flex flex-col justify-between bg-slate-900/60 border border-cyan-500/20 p-5 rounded-xl space-y-4">
+                <div className="space-y-3">
+                  <div className="h-10 w-10 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-lg">
+                    ✍️
+                  </div>
+                  <h3 className="font-mono text-sm font-bold text-cyan-300 uppercase tracking-wider">
+                    ¿Cómo justificar la asociación?
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed font-mono">
+                    Para consolidar un grupo criminal, debes obligatoriamente indicar el criterio de conexidad en el campo **Asociar por** (ej: la misma modalidad, patrón común o territorio compartido).
+                  </p>
+                  <p className="text-xs text-slate-300 leading-relaxed font-mono">
+                    Además, debes redactar una **Justificación** detallada que sustente por qué consideras que estos casos están conectados e investigados como un único grupo.
+                  </p>
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">
+                  Paso 6 de 10
+                </div>
+              </div>
+
+              {/* Right Column: Preview Form */}
+              <div className="flex flex-col justify-between space-y-6">
+                <div className="border-b border-slate-700/50 pb-3">
+                  <h3 className="font-mono text-sm font-bold text-slate-100 uppercase tracking-wider">
+                    Ventana de Justificación (Demostración)
+                  </h3>
+                </div>
+                
+                <div className="space-y-4 text-left">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 font-mono">Asociar por:</label>
+                    <select disabled className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-xs text-slate-300 outline-none">
+                      <option>Modalidad</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 font-mono">Justificación:</label>
+                    <textarea disabled className="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-300 outline-none resize-none font-mono" rows={4} value="Se asocian ambos radicados debido a que en las denuncias se identifica el mismo alias del victimario y un modus operandi idéntico en zona sur." />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTutorialStep(7)}
+                    className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 7 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-12">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                🎨
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Visualización del Grupo Formado
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 7 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  ¡El grupo se ha creado! Como puedes observar en las tarjetas destacadas detrás de este modal, los casos asociados ahora lucen un **borde y sombreado verde brillante** y muestran una etiqueta con el nombre del grupo.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(8)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 8 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                📁
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Arquitectura de Grupos (Sidebar)
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 8 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  En la **barra lateral derecha** (Arquitectura de Grupos) verás de forma colapsable y jerárquica la estructura de todas tus carpetas. Esto te permite tener un inventario ordenado de tus asociaciones.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(9)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 9 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ✏️
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Editar Nombre y Remover Casos
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 9 de 10
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Haciendo clic en el lápiz al lado del grupo en la barra lateral podrás **renombrarlo** libremente. Si deseas retirar un caso de un grupo, solo despliégalo y presiona el botón **(X)** para sacarlo del grupo.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSwitchToLobby();
+                    setTutorialStep(10);
+                  }}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

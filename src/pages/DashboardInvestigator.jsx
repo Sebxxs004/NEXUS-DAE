@@ -31,7 +31,7 @@ import nexusLogo from '../assets/NEXUS-DAE.png';
 import fondoLogin from '../assets/fondo-login.png';
 import fondoAdmin from '../assets/fondo-admin.jpeg';
 
-const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
+const API_URL = import.meta.env.DEV ? `http://${window.location.hostname}:5000/api` : (import.meta.env.VITE_API_URL || '/api');
 const TICK_MS = 50;
 const NODE_RADIUS = 34;
 const FIXED_SPEED = 1.4;
@@ -422,10 +422,16 @@ function buildCompactGraphLayout(nodes, width = 320, height = 150) {
 function DashboardInvestigator({ token }) {
   const boardRef = useRef(null);
   const groupedRegionsRef = useRef([]);
-  const { usuario, logout, completarPrimeraVez, guardarTiempo } = useAuthStore();
+  const { usuario, logout, completarPrimeraVez, guardarTiempo, obtenerPerfil } = useAuthStore();
   const [showWelcome, setShowWelcome] = useState(() => {
     return usuario?.primera_vez !== false;
   });
+
+  useEffect(() => {
+    if (token) {
+      obtenerPerfil();
+    }
+  }, [token]);
 
   useEffect(() => {
     if (usuario) {
@@ -435,6 +441,7 @@ function DashboardInvestigator({ token }) {
 
   const [showInstructions, setShowInstructions] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [tutorialStep, setTutorialStep] = useState(0); // 0 = inactive, 1 = dashboard intro, 2 = procesos spotlight
 
   const [carpetas, setCarpetas] = useState([]);
   const [documentsByCase, setDocumentsByCase] = useState({});
@@ -1357,11 +1364,17 @@ function DashboardInvestigator({ token }) {
 
   // Triggering check
   useEffect(() => {
-    if (investigationFinished || showWelcome) {
+    if (investigationFinished || showWelcome || despachoEvents.length === 0) {
       return;
     }
-    // Check if exactly 10 minutes has passed
-    if (elapsedSeconds > 0 && elapsedSeconds % 600 === 0) {
+    
+    // If all events have been shown, do not run further triggers
+    if (shownEventIds.length >= despachoEvents.length) {
+      return;
+    }
+
+    const expectedTriggerCount = Math.floor(elapsedSeconds / 600);
+    if (shownEventIds.length < expectedTriggerCount) {
       const available = despachoEvents.filter(e => !shownEventIds.includes(e.id));
       if (available.length > 0) {
         const randomIndex = Math.floor(Math.random() * available.length);
@@ -2481,6 +2494,7 @@ function DashboardInvestigator({ token }) {
                       completarPrimeraVez();
                       localStorage.setItem(`nexus_first_login_${usuario?.id}`, 'false');
                       setShowInstructions(false);
+                      setTutorialStep(1);
                     }
                   }}
                   className={`rounded-lg px-6 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-white shadow-lg transition-all duration-300 ${currentStep === 4
@@ -2553,11 +2567,18 @@ function DashboardInvestigator({ token }) {
 
           {/* Bottom Navigation Buttons aligned to opposite corners */}
           <div className="flex flex-col md:flex-row items-stretch md:items-end justify-between w-full gap-4 pb-2">
-            {/* Left Button */}
-            <button
-              onClick={() => setActiveSection('casos')}
-              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
-            >
+             {/* Left Button */}
+             <button
+               onClick={() => {
+                 if (tutorialStep === 2) {
+                   setTutorialStep(0);
+                 }
+                 setActiveSection('casos');
+               }}
+               className={`flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] ${
+                 tutorialStep === 2 ? 'relative z-[10000] border-cyan-400 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)] scale-105' : ''
+               }`}
+             >
               <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
                 <FiFolder size={20} />
               </div>
@@ -2605,6 +2626,8 @@ function DashboardInvestigator({ token }) {
           onOpenCaseDetails={handleOpenCaseDetails}
           onSwitchToBoard={() => setActiveSection('tablero')}
           onSwitchToLobby={() => setActiveSection('lobby')}
+          tutorialStep={tutorialStep}
+          setTutorialStep={setTutorialStep}
         />
       )}
 
@@ -3758,6 +3781,129 @@ function DashboardInvestigator({ token }) {
             </div>
           )}
         </>
+      )}
+
+      {/* Tutorial Overlay */}
+      {(tutorialStep === 1 || tutorialStep === 2 || tutorialStep === 10) && (
+        <div className={`fixed inset-0 z-[9999] flex flex-col items-center p-4 transition-all ${tutorialStep === 1 ? 'justify-start pt-10 md:pt-16' : 'justify-center'}`}>
+          {/* Dark vignette background overlay */}
+          <div className={`absolute inset-0 transition-all ${tutorialStep === 1 ? 'bg-slate-950/45 backdrop-blur-none' : 'bg-slate-950/80 backdrop-blur-sm'}`} />
+
+          {tutorialStep === 1 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom">
+              <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-bounce">
+                🎯
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
+                  Paseo por tu Despacho
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Pantalla Principal (Dashboard)
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Este es tu **Dashboard principal**. Aquí tendrás una vista general de tu jornada como fiscal, incluyendo el temporizador límite del juego y los accesos rápidos a las herramientas de investigación.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(2)}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 2 && (
+            <>
+              {/* Spotlight Clone Button */}
+              <div className="hidden md:block md:absolute md:bottom-8 md:left-8 z-[10000] scale-105 pointer-events-none">
+                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-cyan-400 bg-slate-950 text-center space-y-2 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)]">
+                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                    <FiFolder size={20} />
+                  </div>
+                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Procesos del despacho</span>
+                  <span className="text-xs text-slate-400">Noticias criminales y expedientes</span>
+                </div>
+              </div>
+
+              {/* Spotlight Pointer / Card */}
+              <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:left-8 z-[10000]">
+                <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-pulse">
+                  📂
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
+                    Procesos del Despacho
+                  </h3>
+                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                    Gestión de Casos y Noticias Criminales
+                  </p>
+                  <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                    Este es el botón de **Procesos**. Al ingresar aquí podrás analizar expedientes, revisar noticias criminales, radicar casos en grupos de asociación delictiva y revisar la bitácora general de forma detallada.
+                  </p>
+                </div>
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSection('casos');
+                      setTutorialStep(3);
+                    }}
+                    className="rounded-lg bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                  >
+                    Ir a Procesos →
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tutorialStep === 10 && (
+            <>
+              {/* Spotlight Clone Button right */}
+              <div className="hidden md:block md:absolute md:bottom-8 md:right-8 z-[10000] scale-105 pointer-events-none">
+                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-cyan-400 bg-slate-950 text-center space-y-2 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)]">
+                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                    <FiZap size={20} />
+                  </div>
+                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Toma de decisiones</span>
+                  <span className="text-xs text-slate-400">Patrones y conexiones</span>
+                </div>
+              </div>
+
+              {/* Spotlight Pointer / Card right */}
+              <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:right-8 z-[10000]">
+                <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-pulse">
+                  ⚡
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
+                    Toma de Decisiones
+                  </h3>
+                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                    Paso 10 de 10
+                  </p>
+                  <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                    Finalmente, aquí está el módulo de **Toma de decisiones**. Al ingresar podrás conectar los nexos entre grupos delictivos, sustentar tu hipótesis y finalizar formalmente la simulación.
+                  </p>
+                </div>
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTutorialStep(0)}
+                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  >
+                    Finalizar Paseo 🏁
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </>
   );

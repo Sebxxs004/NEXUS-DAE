@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-const API_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || '/api');
+const API_URL = import.meta.env.DEV ? `http://${window.location.hostname}:5000/api` : (import.meta.env.VITE_API_URL || '/api');
 
 const useAuthStore = create((set, get) => ({
   usuario: null,
@@ -94,6 +94,21 @@ const useAuthStore = create((set, get) => ({
       localStorage.setItem('usuario', JSON.stringify(nuevoUsuario));
     } catch (e) {
       console.error('Error guardando grupos:', e);
+    }
+  },
+
+  obtenerPerfil: async () => {
+    const { token } = get();
+    if (!token) return;
+    try {
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const usuario = response.data.usuario;
+      set({ usuario });
+      localStorage.setItem('usuario', JSON.stringify(usuario));
+    } catch (e) {
+      console.error('Error cargando perfil actualizado:', e);
     }
   },
 

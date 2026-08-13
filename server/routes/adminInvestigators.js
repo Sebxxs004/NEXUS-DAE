@@ -109,8 +109,28 @@ router.get('/investigadores', authenticate, requireAdmin, async (_req, res) => {
 router.patch('/investigadores/:id/reset-first-login', authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // 1. Delete evaluations feedback data
+    await pool.query(
+      'DELETE FROM evaluaciones_investigador WHERE usuario_id = $1',
+      [id]
+    );
+
+    // 2. Delete connections created by user (for the 3D graph)
+    await pool.query(
+      'DELETE FROM conexiones WHERE created_by = $1',
+      [id]
+    );
+
+    // 3. Delete association groups created by user (which cascades to cases, relations and exclusions)
+    await pool.query(
+      'DELETE FROM grupos_asociacion WHERE created_by = $1',
+      [id]
+    );
+
+    // 4. Reset user flags: primera_vez = true, elapsed_seconds = 0, and empty created_groups json string
     const result = await pool.query(
-      'UPDATE usuarios SET primera_vez = TRUE WHERE id = $1 RETURNING id, nombre, email, primera_vez',
+      "UPDATE usuarios SET primera_vez = TRUE, elapsed_seconds = 0, created_groups = '[]' WHERE id = $1 RETURNING id, nombre, email, primera_vez",
       [id]
     );
 
@@ -118,7 +138,7 @@ router.patch('/investigadores/:id/reset-first-login', authenticate, requireAdmin
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    return res.json({ usuario: result.rows[0] });
+    return res.json({ success: true, message: 'Inducción reiniciada y progreso del usuario completamente reseteado a cero.', usuario: result.rows[0] });
   } catch (error) {
     console.error('Error reseteando primer ingreso:', error);
     return res.status(500).json({ error: 'No fue posible resetear el primer ingreso' });
@@ -214,13 +234,31 @@ router.patch('/investigadores/:id/reactivar', authenticate, requireAdmin, async 
   try {
     const { id } = req.params;
     
-    // Delete the evaluations record which holds the locked/submitted status
+    // 1. Delete evaluations feedback data
     await pool.query(
       'DELETE FROM evaluaciones_investigador WHERE usuario_id = $1',
       [id]
     );
 
-    return res.json({ success: true, message: 'Investigación reactivada exitosamente preservando grupos y progresos.' });
+    // 2. Delete connections created by user (for the 3D graph)
+    await pool.query(
+      'DELETE FROM conexiones WHERE created_by = $1',
+      [id]
+    );
+
+    // 3. Delete association groups created by user (which cascades to cases, relations and exclusions)
+    await pool.query(
+      'DELETE FROM grupos_asociacion WHERE created_by = $1',
+      [id]
+    );
+
+    // 4. Reset user flags: primera_vez = true, elapsed_seconds = 0, and empty created_groups json string
+    await pool.query(
+      "UPDATE usuarios SET primera_vez = true, elapsed_seconds = 0, created_groups = '[]' WHERE id = $1",
+      [id]
+    );
+
+    return res.json({ success: true, message: 'Investigación y progreso del usuario reseteados exitosamente. Listo para nueva inducción.' });
   } catch (error) {
     console.error('Error reactivando investigación:', error);
     return res.status(500).json({ error: 'No fue posible reactivar la investigación' });

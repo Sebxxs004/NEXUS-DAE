@@ -35,6 +35,8 @@ const authenticate = (req, res, next) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const requestedHost = req.headers.host;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email y contraseña requeridas' });
@@ -46,6 +48,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.warn(`[LOGIN FAILED] Intento de login fallido para el email: ${email} - IP Cliente: ${clientIp} - Host solicitado: ${requestedHost} - Motivo: Usuario no existe o está inactivo`);
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
@@ -58,6 +61,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (!passwordValido) {
+      console.warn(`[LOGIN FAILED] Intento de login fallido para el email: ${email} - IP Cliente: ${clientIp} - Host solicitado: ${requestedHost} - Motivo: Contraseña incorrecta`);
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
@@ -66,6 +70,8 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET || 'prisma_secret_key_2026',
       { expiresIn: '24h' }
     );
+
+    console.log(`[LOGIN SUCCESS] Sesión iniciada para el usuario: ${usuario.nombre} (${usuario.email}) - Rol: ${usuario.rol} - IP Cliente: ${clientIp} - Host solicitado: ${requestedHost} - Hora: ${new Date().toLocaleString('es-CO')}`);
 
     res.json({
       token,
@@ -80,7 +86,7 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error('[LOGIN ERROR] Error en la ruta de inicio de sesión:', error);
     res.status(500).json({ error: 'Error en servidor' });
   }
 });
@@ -146,6 +152,22 @@ router.post('/register', async (req, res) => {
     );
 
     res.json({ usuario: result.rows[0], tempPassword });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT u.id, u.nombre, u.email, u.primera_vez, u.elapsed_seconds, u.created_groups, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.json({ usuario: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error en servidor' });
