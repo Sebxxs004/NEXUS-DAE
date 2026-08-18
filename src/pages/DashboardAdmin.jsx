@@ -23,6 +23,45 @@ const EMPTY_DOCUMENT = { nombre: '', descripcion: '', archivo_url: '' };
 const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
 const MAX_DOCUMENT_SIZE_BYTES = 40 * 1024 * 1024;
 
+const compressImage = (file, maxWidth = 1000, maxHeight = 1000, quality = 0.75) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress image to JPEG format with specified quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 function DashboardAdmin() {
   const { usuario, token, logout } = useAuthStore();
 
@@ -228,14 +267,6 @@ function DashboardAdmin() {
       currentName: '',
     });
 
-    const fileToBase64 = (file) =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = (err) => reject(err);
-      });
-
     let successCount = 0;
 
     for (let i = 0; i < files.length; i += 1) {
@@ -258,13 +289,13 @@ function DashboardAdmin() {
       }));
 
       try {
-        const base64Image = await fileToBase64(file);
+        const compressedBase64 = await compressImage(file);
         await axios.post(
           `${API_URL}/carpetas`,
           {
             nombre: `Caso ${numeroRadicado}`,
             tipo_delito: delito,
-            imagen_url: base64Image,
+            imagen_url: compressedBase64,
             usuario_id: usuario.id,
           },
           {
@@ -273,7 +304,7 @@ function DashboardAdmin() {
         );
         successCount += 1;
       } catch (err) {
-        console.error(`Error subiendo archivo ${file.name}:`, err);
+        console.error(`Error subiendo y comprimiendo archivo ${file.name}:`, err);
       }
     }
 
@@ -362,7 +393,7 @@ function DashboardAdmin() {
     }
   };
 
-  const handleImageFile = (file) => {
+  const handleImageFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) {
       setError('Solo se permiten archivos de imagen en el caso.');
       return;
@@ -373,15 +404,17 @@ function DashboardAdmin() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const compressedBase64 = await compressImage(file);
       setModalData((current) => ({
         ...current,
-        imagen_url: String(reader.result),
+        imagen_url: compressedBase64,
       }));
       setError('');
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error comprimiendo imagen:', err);
+      setError('Error al procesar y comprimir la imagen.');
+    }
   };
 
   const handleDropImage = (event) => {
