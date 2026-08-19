@@ -442,6 +442,7 @@ function DashboardInvestigator({ token }) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [zoomedImageUrl, setZoomedImageUrl] = useState(null);
   const [lightboxZoomed, setLightboxZoomed] = useState(false);
+  const [lastEventTriggeredTime, setLastEventTriggeredTime] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [tutorialStep, setTutorialStep] = useState(0); // 0 = inactive, 1 = dashboard intro, 2 = procesos spotlight
 
@@ -1366,21 +1367,26 @@ function DashboardInvestigator({ token }) {
 
   // Triggering check
   useEffect(() => {
-    console.log('[ALERT TRIGGER CHECK] checking...', {
-      elapsedSeconds,
-      tutorialStep,
-      investigationFinished,
-      despachoEventsCount: despachoEvents.length,
-      shownCount: shownEventIds.length
-    });
-
     if (investigationFinished || tutorialStep !== 0 || despachoEvents.length === 0) {
       return;
     }
+
+    // Initialize anchor time to current elapsedSeconds when tutorial finishes
+    if (lastEventTriggeredTime === null) {
+      setLastEventTriggeredTime(elapsedSeconds);
+      return;
+    }
+
+    console.log('[ALERT TRIGGER CHECK] checking...', {
+      elapsedSeconds,
+      lastEventTriggeredTime,
+      secondsSinceLast: elapsedSeconds - lastEventTriggeredTime,
+      despachoEventsCount: despachoEvents.length,
+      shownCount: shownEventIds.length
+    });
     
     // If there is already an active event on screen, defer triggering the next one
     if (activeEvent !== null) {
-      console.log('[ALERT TRIGGER CHECK] Trigger deferred: an event is currently active on screen');
       return;
     }
 
@@ -1389,28 +1395,25 @@ function DashboardInvestigator({ token }) {
       return;
     }
 
-    // Trigger first alert at 2 minutes (120s), subsequent ones every 10 minutes (600s)
-    let expectedTriggerCount = 0;
-    if (elapsedSeconds >= 120) {
-      expectedTriggerCount = 1 + Math.floor((elapsedSeconds - 120) / 600);
-    }
+    // Determine target delay: 2 minutes (120s) for first event, 10 minutes (600s) for subsequent ones
+    const requiredDelay = shownEventIds.length === 0 ? 120 : 600;
+    const secondsSinceLast = elapsedSeconds - lastEventTriggeredTime;
 
-    console.log('[ALERT TRIGGER CHECK] expected count:', expectedTriggerCount, 'shown count:', shownEventIds.length);
-
-    if (shownEventIds.length < expectedTriggerCount) {
+    if (secondsSinceLast >= requiredDelay) {
       const available = despachoEvents.filter(e => !shownEventIds.includes(e.id));
-      console.log('[ALERT TRIGGER CHECK] Available events for trigger:', available);
       if (available.length > 0) {
         const randomIndex = Math.floor(Math.random() * available.length);
         const chosen = available[randomIndex];
-        console.log('[ALERT TRIGGER CHECK] TRIGGERING EVENT:', chosen);
+        console.log('[ALERT TRIGGER CHECK] TRIGGERING EVENT RELATIVE:', chosen);
+        
         setActiveEvent(chosen);
         setActiveEventStep(1);
         setEventReplyText('');
         setShownEventIds(prev => [...prev, chosen.id]);
+        setLastEventTriggeredTime(elapsedSeconds); // Anchor next event relative to this moment
       }
     }
-  }, [elapsedSeconds, despachoEvents, shownEventIds, investigationFinished, tutorialStep]);
+  }, [elapsedSeconds, despachoEvents, shownEventIds, investigationFinished, tutorialStep, lastEventTriggeredTime, activeEvent]);
 
   const isolatedCases = useMemo(() => {
     return carpetas.filter((caseItem) => {
