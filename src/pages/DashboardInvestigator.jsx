@@ -3677,7 +3677,8 @@ function DashboardInvestigator({ token }) {
       )}
 
       {activeEvent && (
-        <div className="fixed inset-0 z-[50000] flex items-center justify-center px-4 py-8">
+        <div className="fixed inset-0 flex items-center justify-center px-4 py-8" style={{ zIndex: 999999 }}>
+          {console.log("[REACT RENDER] Rendering activeEvent modal in DOM:", activeEvent)}
           {/* Pulsating Background */}
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-[pulse_2s_infinite] shadow-[inset_0_0_100px_rgba(239,68,68,0.35)]" />
           
