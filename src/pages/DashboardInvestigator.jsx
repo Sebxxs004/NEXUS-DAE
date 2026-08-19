@@ -441,6 +441,7 @@ function DashboardInvestigator({ token }) {
 
   const [showInstructions, setShowInstructions] = useState(false);
   const [zoomedImageUrl, setZoomedImageUrl] = useState(null);
+  const [lightboxZoomed, setLightboxZoomed] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [tutorialStep, setTutorialStep] = useState(0); // 0 = inactive, 1 = dashboard intro, 2 = procesos spotlight
 
@@ -3943,22 +3944,54 @@ function DashboardInvestigator({ token }) {
       {/* Fullscreen Image Zoom Overlay */}
       {zoomedImageUrl && (
         <div 
-          className="fixed inset-0 z-[1000000] flex items-center justify-center bg-black/95 p-4 md:p-8 backdrop-blur-md cursor-zoom-out select-none"
-          onClick={() => setZoomedImageUrl(null)}
+          className="fixed inset-0 z-[1000000] flex items-center justify-center bg-black/95 p-4 md:p-8 backdrop-blur-md overflow-auto cursor-zoom-out"
+          onClick={() => {
+            setZoomedImageUrl(null);
+            setLightboxZoomed(false);
+          }}
         >
-          <div className="relative max-w-full max-h-full flex flex-col items-center">
+          {/* Top Right Floating Controls */}
+          <div className="absolute top-4 right-4 z-20 flex gap-2">
             <button
               type="button"
-              onClick={() => setZoomedImageUrl(null)}
-              className="absolute top-4 right-4 z-10 bg-slate-900/80 border border-slate-700 p-3 rounded-full text-white hover:bg-slate-800 transition"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxZoomed(!lightboxZoomed);
+              }}
+              className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/30 p-2.5 px-5 rounded-lg text-white text-xs font-bold transition font-mono shadow-lg select-none"
             >
-              ✕ Cerrar Zoom
+              {lightboxZoomed ? '🔍 Ajustar Pantalla' : '🔍 Ver Detalle (100%)'}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setZoomedImageUrl(null);
+                setLightboxZoomed(false);
+              }}
+              className="bg-slate-900 border border-slate-700 p-2.5 px-4 rounded-lg text-white text-xs font-bold hover:bg-slate-800 transition font-mono select-none"
+            >
+              ✕ Cerrar
+            </button>
+          </div>
+
+          {/* Image Container with toggle zoom ability */}
+          <div 
+            className={`relative transition-all duration-300 flex items-center justify-center ${
+              lightboxZoomed ? 'w-[150vw] h-[210vh] max-w-none max-h-none my-10' : 'max-w-full max-h-full'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxZoomed(!lightboxZoomed);
+            }}
+          >
             <img
               src={zoomedImageUrl}
               alt="Zoomed document"
-              className="max-w-[95vw] max-h-[92vh] object-contain rounded-xl border border-slate-800 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
+              className={`rounded-xl border border-slate-800 shadow-2xl transition-all duration-300 ${
+                lightboxZoomed 
+                  ? 'max-w-none max-h-none w-full h-full object-contain cursor-zoom-out' 
+                  : 'max-w-[95vw] max-h-[92vh] object-contain cursor-zoom-in'
+              }`}
             />
           </div>
         </div>
