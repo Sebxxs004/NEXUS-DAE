@@ -440,6 +440,7 @@ function DashboardInvestigator({ token }) {
   }, [usuario]);
 
   const [showInstructions, setShowInstructions] = useState(false);
+  const [zoomedImageUrl, setZoomedImageUrl] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [tutorialStep, setTutorialStep] = useState(0); // 0 = inactive, 1 = dashboard intro, 2 = procesos spotlight
 
@@ -3753,13 +3754,19 @@ function DashboardInvestigator({ token }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setZoomedImageUrl(activeEvent.imagen_url)}
+                      title="Clic para ampliar"
+                      className="w-full rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden cursor-zoom-in hover:brightness-110 active:scale-[0.99] transition-all"
+                    >
                       <img
                         src={activeEvent.imagen_url}
                         alt="Alerta"
-                        className="max-w-full max-h-[38vh] object-contain"
+                        className="max-w-full max-h-[38vh] object-contain pointer-events-none"
                       />
-                    </div>
+                    </button>
+                    <p className="text-[10px] text-slate-500 font-mono text-center -mt-2">🔍 Haz clic sobre la notificación para ampliarla y leerla</p>
                     <div className="space-y-2">
                       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
                         Escriba su respuesta al correo:
@@ -3901,13 +3908,19 @@ function DashboardInvestigator({ token }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setZoomedImageUrl(activeEvent.imagen_url)}
+                      title="Clic para ampliar"
+                      className="w-full rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden cursor-zoom-in hover:brightness-110 active:scale-[0.99] transition-all"
+                    >
                       <img
                         src={activeEvent.imagen_url}
                         alt="Entrevista"
-                        className="max-w-full max-h-[38vh] object-contain"
+                        className="max-w-full max-h-[38vh] object-contain pointer-events-none"
                       />
-                    </div>
+                    </button>
+                    <p className="text-[10px] text-slate-500 font-mono text-center -mt-2">🔍 Haz clic sobre el documento para ampliarlo y leerlo</p>
                     <div className="flex justify-end pt-2">
                       <button
                         type="button"
@@ -3923,6 +3936,30 @@ function DashboardInvestigator({ token }) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Zoom Overlay */}
+      {zoomedImageUrl && (
+        <div 
+          className="fixed inset-0 z-[1000000] flex items-center justify-center bg-black/95 p-4 md:p-8 backdrop-blur-md cursor-zoom-out select-none"
+          onClick={() => setZoomedImageUrl(null)}
+        >
+          <div className="relative max-w-full max-h-full flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setZoomedImageUrl(null)}
+              className="absolute top-4 right-4 z-10 bg-slate-900/80 border border-slate-700 p-3 rounded-full text-white hover:bg-slate-800 transition"
+            >
+              ✕ Cerrar Zoom
+            </button>
+            <img
+              src={zoomedImageUrl}
+              alt="Zoomed document"
+              className="max-w-[95vw] max-h-[92vh] object-contain rounded-xl border border-slate-800 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}
