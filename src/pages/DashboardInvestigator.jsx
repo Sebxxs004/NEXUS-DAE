@@ -3683,7 +3683,7 @@ function DashboardInvestigator({ token }) {
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-[pulse_2s_infinite] shadow-[inset_0_0_100px_rgba(239,68,68,0.35)]" />
           
           {/* Stable Modal Content */}
-          <div className="relative w-full max-w-2xl rounded-2xl border-2 border-red-600 bg-gradient-to-b from-[#180505] to-[#070b13] p-6 shadow-[0_0_60px_rgba(239,68,68,0.7)] flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-2xl rounded-2xl border-2 border-red-600 bg-gradient-to-b from-[#180505] to-[#070b13] p-6 shadow-[0_0_60px_rgba(239,68,68,0.7)] flex flex-col max-h-[90vh] overflow-y-auto">
             
             {activeEvent.nombre.startsWith('alerta') ? (
               // ALERTA CORREO FLOW
@@ -3753,11 +3753,11 @@ function DashboardInvestigator({ token }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
+                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden">
                       <img
                         src={activeEvent.imagen_url}
                         alt="Alerta"
-                        className="w-full h-full object-contain"
+                        className="max-w-full max-h-[38vh] object-contain"
                       />
                     </div>
                     <div className="space-y-2">
@@ -3901,11 +3901,11 @@ function DashboardInvestigator({ token }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
+                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 flex justify-center max-h-[38vh] overflow-hidden">
                       <img
                         src={activeEvent.imagen_url}
                         alt="Entrevista"
-                        className="w-full h-full object-contain"
+                        className="max-w-full max-h-[38vh] object-contain"
                       />
                     </div>
                     <div className="flex justify-end pt-2">
