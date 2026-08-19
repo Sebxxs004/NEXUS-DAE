@@ -1378,6 +1378,12 @@ function DashboardInvestigator({ token }) {
       return;
     }
     
+    // If there is already an active event on screen, defer triggering the next one
+    if (activeEvent !== null) {
+      console.log('[ALERT TRIGGER CHECK] Trigger deferred: an event is currently active on screen');
+      return;
+    }
+
     // If all events have been shown, do not run further triggers
     if (shownEventIds.length >= despachoEvents.length) {
       return;
