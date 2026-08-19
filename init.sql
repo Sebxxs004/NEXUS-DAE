@@ -24,6 +24,7 @@ CREATE TABLE usuarios (
   activo BOOLEAN DEFAULT TRUE,
   primera_vez BOOLEAN DEFAULT TRUE,
   elapsed_seconds INTEGER DEFAULT 0,
+  created_groups TEXT DEFAULT '[]',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -138,6 +139,17 @@ CREATE TABLE evaluacion_justificaciones (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (evaluacion_id, pair_key)
+);
+
+-- Tabla de Eventos del Despacho
+CREATE TABLE eventos_despacho (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nombre VARCHAR(120) NOT NULL,
+  descripcion TEXT,
+  tipo VARCHAR(50) NOT NULL DEFAULT 'informacion',
+  imagen_url TEXT,
+  opciones JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Crear índices para mejores búsquedas
@@ -259,3 +271,9 @@ VALUES
     'Las entradas de inventario y los pagos puente comparten el mismo horario y beneficiarios.',
     (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
   );
+
+-- Insertar eventos de despacho por defecto para el tutorial
+INSERT INTO eventos_despacho (nombre, descripcion, tipo, opciones) VALUES
+  ('alerta_1', 'Se reporta una posible fuga de información de uno de tus investigadores. ¿Qué acción tomas?', 'alerta', '[{"texto": "Iniciar investigación disciplinaria", "valor": "disciplinaria"}, {"texto": "Ignorar por ahora", "valor": "ignorar"}]'::jsonb),
+  ('persona_1', 'Un informante clave solicita una reunión de seguridad urgente fuera del despacho.', 'persona', '[{"texto": "Asistir con escolta policial", "valor": "asistir_escolta"}, {"texto": "Enviar a policía judicial", "valor": "enviar_pj"}]'::jsonb)
+ON CONFLICT DO NOTHING;
