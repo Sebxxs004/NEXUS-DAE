@@ -3222,256 +3222,6 @@ function DashboardInvestigator({ token }) {
             </div>
           )}
 
-          {activeEvent && (
-        <div className="fixed inset-0 z-[50000] flex items-center justify-center px-4 py-8">
-          {/* Pulsating Background */}
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-[pulse_2s_infinite] shadow-[inset_0_0_100px_rgba(239,68,68,0.35)]" />
-          
-          {/* Stable Modal Content */}
-          <div className="relative w-full max-w-2xl rounded-2xl border-2 border-red-600 bg-gradient-to-b from-[#180505] to-[#070b13] p-6 shadow-[0_0_60px_rgba(239,68,68,0.7)] flex flex-col max-h-[90vh]">
-            
-            {activeEvent.nombre.startsWith('alerta') ? (
-              // ALERTA CORREO FLOW
-              <div className="space-y-6">
-                <div className="border-b border-red-500/30 pb-4 text-center">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 text-2xl mb-2">
-                    ✉
-                  </div>
-                  <h2 className="font-mono text-xl font-black text-red-500 uppercase tracking-widest animate-bounce">
-                    Nuevo correo institucional
-                  </h2>
-                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono mt-1">
-                    Sistema ARKIVA | Despacho fiscal
-                  </p>
-                  
-                  {/* Countdown Timer */}
-                  <div className="mt-3 inline-flex flex-col items-center bg-red-900/20 border border-red-500/40 rounded-xl px-8 py-2.5 select-none shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-                    <span className="text-[10px] tracking-[0.2em] uppercase text-red-400 font-mono font-extrabold animate-pulse">TIEMPO LÍMITE DE DECISIÓN</span>
-                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{eventCountdown}s</span>
-                  </div>
-                </div>
-
-                {activeEventStep === 1 ? (
-                  <div className="space-y-4 text-center">
-                    <p className="text-sm text-slate-300 font-mono">
-                      Ha recibido una alerta urgente en su buzón de ARKIVA. Decida cómo proceder:
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setElapsedSeconds(prev => prev + 120); // Resta 2 min
-                          setActiveEventStep(2);
-                          setEventResponses(prev => ({
-                            ...prev,
-                            [activeEvent.id]: {
-                              name: activeEvent.nombre,
-                              type: 'alerta',
-                              decision: 'Leer correo (Se restaron 2 minutos)'
-                            }
-                          }));
-                        }}
-                        className="rounded-lg border border-cyan-500 bg-cyan-950/60 p-4 text-sm font-bold text-cyan-300 hover:bg-cyan-900/60 transition font-mono flex flex-col items-center justify-center gap-1"
-                      >
-                        <span>Leer correo</span>
-                        <span className="text-[10px] text-red-400 font-semibold">(Resta 2 minutos)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEventResponses(prev => ({
-                            ...prev,
-                            [activeEvent.id]: {
-                              name: activeEvent.nombre,
-                              type: 'alerta',
-                              decision: 'Dejar pasar (No restó tiempo)'
-                            }
-                          }));
-                          setActiveEvent(null);
-                        }}
-                        className="rounded-lg border border-slate-700 bg-slate-800/40 p-4 text-sm font-bold text-slate-300 hover:bg-slate-700/60 transition font-mono flex flex-col items-center justify-center gap-1"
-                      >
-                        <span>Dejar pasar</span>
-                        <span className="text-[10px] text-slate-500">(No afecta el tiempo)</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
-                      <img
-                        src={activeEvent.imagen_url}
-                        alt="Alerta"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
-                        Escriba su respuesta al correo:
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={eventReplyText}
-                        onChange={(e) => setEventReplyText(e.target.value)}
-                        placeholder="Escriba su justificación o respuesta aquí..."
-                        className="w-full rounded-lg border border-slate-800 bg-[#030712] p-3 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-red-500 resize-none font-mono"
-                      />
-                    </div>
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEventResponses(prev => ({
-                            ...prev,
-                            [activeEvent.id]: {
-                              ...prev[activeEvent.id],
-                              reply: eventReplyText
-                            }
-                          }));
-                          setActiveEvent(null);
-                        }}
-                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 px-6 py-2.5 text-xs font-bold text-red-200 transition font-mono"
-                      >
-                        Enviar y Continuar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              // PERSONA ENTREVISTA FLOW
-              <div className="space-y-6">
-                <div className="border-b border-red-500/30 pb-4 text-center">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 text-2xl mb-2">
-                    👥
-                  </div>
-                  <h2 className="font-mono text-xl font-black text-red-500 uppercase tracking-widest">
-                    USUARIO EN EL DESPACHO
-                  </h2>
-                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono mt-1">
-                    Atención de Testigos y Entrevistas
-                  </p>
-                  
-                  {/* Countdown Timer */}
-                  <div className="mt-3 inline-flex flex-col items-center bg-red-900/20 border border-red-500/40 rounded-xl px-8 py-2.5 select-none shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-                    <span className="text-[10px] tracking-[0.2em] uppercase text-red-400 font-mono font-extrabold animate-pulse">TIEMPO LÍMITE DE DECISIÓN</span>
-                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{eventCountdown}s</span>
-                  </div>
-                </div>
-
-                {activeEventStep === 1 ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-300 font-mono text-center leading-relaxed">
-                      Ha llegado un usuario a su despacho para una entrevista. Debe decidir cómo atender la situación:
-                    </p>
-                    <div className="flex flex-col gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setElapsedSeconds(prev => prev + 300); // Resta 5 min
-                          setActiveEventStep(2);
-                          setEventResponses(prev => ({
-                            ...prev,
-                            [activeEvent.id]: {
-                              name: activeEvent.nombre,
-                              type: 'persona',
-                              decision: 'Aceptar usuario (Se restaron 5 minutos)'
-                            }
-                          }));
-                        }}
-                        className="w-full rounded-lg border border-cyan-500 bg-cyan-950/60 p-4 text-sm font-bold text-cyan-300 hover:bg-cyan-900/60 transition font-mono flex items-center justify-between"
-                      >
-                        <span>Aceptar usuario en despacho</span>
-                        <span className="text-[11px] text-red-400 font-semibold">(Resta 5 minutos)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setElapsedSeconds(prev => prev + 180); // Resta 3 min
-                          setActiveEventStep(1.5); // Intermediate judicante step
-                        }}
-                        className="w-full rounded-lg border border-purple-500 bg-purple-950/60 p-4 text-sm font-bold text-purple-300 hover:bg-purple-900/60 transition font-mono flex items-center justify-between"
-                      >
-                        <span>Remitir al judicante</span>
-                        <span className="text-[11px] text-red-400 font-semibold">(Resta 3 minutos)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEventResponses(prev => ({
-                            ...prev,
-                            [activeEvent.id]: {
-                              name: activeEvent.nombre,
-                              type: 'persona',
-                              decision: 'Reprogramar la entrevista (No restó tiempo)'
-                            }
-                          }));
-                          setActiveEvent(null);
-                        }}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-800/40 p-4 text-sm font-bold text-slate-300 hover:bg-slate-700/60 transition font-mono flex items-center justify-between"
-                      >
-                        <span>Reprogramar la entrevista</span>
-                        <span className="text-[11px] text-slate-500">(No afecta el tiempo)</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : activeEventStep === 1.5 ? (
-                  <div className="space-y-6 text-center py-6">
-                    <p className="text-sm font-bold text-amber-300 font-mono border border-amber-500/20 bg-amber-500/10 p-4 rounded-xl">
-                      "El judicante menciona que es urgente que reciba la entrevista."
-                    </p>
-                    <p className="text-xs text-red-400 font-mono">
-                      (Se restarán 5 minutos adicionales para realizar la entrevista urgente)
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setElapsedSeconds(prev => prev + 300); // Resta 5 min adicionales
-                        setActiveEventStep(2);
-                        setEventResponses(prev => ({
-                          ...prev,
-                          [activeEvent.id]: {
-                            name: activeEvent.nombre,
-                            type: 'persona',
-                            decision: 'Remitido al judicante y atendido de urgencia (Se restaron 8 minutos en total)'
-                          }
-                        }));
-                      }}
-                      className="rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 px-8 py-3 text-sm font-bold text-amber-200 transition font-mono"
-                    >
-                      Continuar a la entrevista
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
-                      <img
-                        src={activeEvent.imagen_url}
-                        alt="Entrevista"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveEvent(null);
-                        }}
-                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 px-6 py-2.5 text-xs font-bold text-red-200 transition font-mono"
-                      >
-                        Finalizar Entrevista
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {isFeedbackModalOpen && validationResult && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
               <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-5 shadow-[0_0_45px_rgba(8,145,178,0.28)]">
@@ -3923,6 +3673,256 @@ function DashboardInvestigator({ token }) {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {activeEvent && (
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center px-4 py-8">
+          {/* Pulsating Background */}
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-[pulse_2s_infinite] shadow-[inset_0_0_100px_rgba(239,68,68,0.35)]" />
+          
+          {/* Stable Modal Content */}
+          <div className="relative w-full max-w-2xl rounded-2xl border-2 border-red-600 bg-gradient-to-b from-[#180505] to-[#070b13] p-6 shadow-[0_0_60px_rgba(239,68,68,0.7)] flex flex-col max-h-[90vh]">
+            
+            {activeEvent.nombre.startsWith('alerta') ? (
+              // ALERTA CORREO FLOW
+              <div className="space-y-6">
+                <div className="border-b border-red-500/30 pb-4 text-center">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 text-2xl mb-2">
+                    ✉
+                  </div>
+                  <h2 className="font-mono text-xl font-black text-red-500 uppercase tracking-widest animate-bounce">
+                    Nuevo correo institucional
+                  </h2>
+                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono mt-1">
+                    Sistema ARKIVA | Despacho fiscal
+                  </p>
+                  
+                  {/* Countdown Timer */}
+                  <div className="mt-3 inline-flex flex-col items-center bg-red-900/20 border border-red-500/40 rounded-xl px-8 py-2.5 select-none shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                    <span className="text-[10px] tracking-[0.2em] uppercase text-red-400 font-mono font-extrabold animate-pulse">TIEMPO LÍMITE DE DECISIÓN</span>
+                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{eventCountdown}s</span>
+                  </div>
+                </div>
+
+                {activeEventStep === 1 ? (
+                  <div className="space-y-4 text-center">
+                    <p className="text-sm text-slate-300 font-mono">
+                      Ha recibido una alerta urgente en su buzón de ARKIVA. Decida cómo proceder:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setElapsedSeconds(prev => prev + 120); // Resta 2 min
+                          setActiveEventStep(2);
+                          setEventResponses(prev => ({
+                            ...prev,
+                            [activeEvent.id]: {
+                              name: activeEvent.nombre,
+                              type: 'alerta',
+                              decision: 'Leer correo (Se restaron 2 minutos)'
+                            }
+                          }));
+                        }}
+                        className="rounded-lg border border-cyan-500 bg-cyan-950/60 p-4 text-sm font-bold text-cyan-300 hover:bg-cyan-900/60 transition font-mono flex flex-col items-center justify-center gap-1"
+                      >
+                        <span>Leer correo</span>
+                        <span className="text-[10px] text-red-400 font-semibold">(Resta 2 minutos)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEventResponses(prev => ({
+                            ...prev,
+                            [activeEvent.id]: {
+                              name: activeEvent.nombre,
+                              type: 'alerta',
+                              decision: 'Dejar pasar (No restó tiempo)'
+                            }
+                          }));
+                          setActiveEvent(null);
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-800/40 p-4 text-sm font-bold text-slate-300 hover:bg-slate-700/60 transition font-mono flex flex-col items-center justify-center gap-1"
+                      >
+                        <span>Dejar pasar</span>
+                        <span className="text-[10px] text-slate-500">(No afecta el tiempo)</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
+                      <img
+                        src={activeEvent.imagen_url}
+                        alt="Alerta"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                        Escriba su respuesta al correo:
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={eventReplyText}
+                        onChange={(e) => setEventReplyText(e.target.value)}
+                        placeholder="Escriba su justificación o respuesta aquí..."
+                        className="w-full rounded-lg border border-slate-800 bg-[#030712] p-3 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-red-500 resize-none font-mono"
+                      />
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEventResponses(prev => ({
+                            ...prev,
+                            [activeEvent.id]: {
+                              ...prev[activeEvent.id],
+                              reply: eventReplyText
+                            }
+                          }));
+                          setActiveEvent(null);
+                        }}
+                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 px-6 py-2.5 text-xs font-bold text-red-200 transition font-mono"
+                      >
+                        Enviar y Continuar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // PERSONA ENTREVISTA FLOW
+              <div className="space-y-6">
+                <div className="border-b border-red-500/30 pb-4 text-center">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 text-2xl mb-2">
+                    👥
+                  </div>
+                  <h2 className="font-mono text-xl font-black text-red-500 uppercase tracking-widest">
+                    USUARIO EN EL DESPACHO
+                  </h2>
+                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono mt-1">
+                    Atención de Testigos y Entrevistas
+                  </p>
+                  
+                  {/* Countdown Timer */}
+                  <div className="mt-3 inline-flex flex-col items-center bg-red-900/20 border border-red-500/40 rounded-xl px-8 py-2.5 select-none shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                    <span className="text-[10px] tracking-[0.2em] uppercase text-red-400 font-mono font-extrabold animate-pulse">TIEMPO LÍMITE DE DECISIÓN</span>
+                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{eventCountdown}s</span>
+                  </div>
+                </div>
+
+                {activeEventStep === 1 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-300 font-mono text-center leading-relaxed">
+                      Ha llegado un usuario a su despacho para una entrevista. Debe decidir cómo atender la situación:
+                    </p>
+                    <div className="flex flex-col gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setElapsedSeconds(prev => prev + 300); // Resta 5 min
+                          setActiveEventStep(2);
+                          setEventResponses(prev => ({
+                            ...prev,
+                            [activeEvent.id]: {
+                              name: activeEvent.nombre,
+                              type: 'persona',
+                              decision: 'Aceptar usuario (Se restaron 5 minutos)'
+                            }
+                          }));
+                        }}
+                        className="w-full rounded-lg border border-cyan-500 bg-cyan-950/60 p-4 text-sm font-bold text-cyan-300 hover:bg-cyan-900/60 transition font-mono flex items-center justify-between"
+                      >
+                        <span>Aceptar usuario en despacho</span>
+                        <span className="text-[11px] text-red-400 font-semibold">(Resta 5 minutos)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setElapsedSeconds(prev => prev + 180); // Resta 3 min
+                          setActiveEventStep(1.5); // Intermediate judicante step
+                        }}
+                        className="w-full rounded-lg border border-purple-500 bg-purple-950/60 p-4 text-sm font-bold text-purple-300 hover:bg-purple-900/60 transition font-mono flex items-center justify-between"
+                      >
+                        <span>Remitir al judicante</span>
+                        <span className="text-[11px] text-red-400 font-semibold">(Resta 3 minutos)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEventResponses(prev => ({
+                            ...prev,
+                            [activeEvent.id]: {
+                              name: activeEvent.nombre,
+                              type: 'persona',
+                              decision: 'Reprogramar la entrevista (No restó tiempo)'
+                            }
+                          }));
+                          setActiveEvent(null);
+                        }}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800/40 p-4 text-sm font-bold text-slate-300 hover:bg-slate-700/60 transition font-mono flex items-center justify-between"
+                      >
+                        <span>Reprogramar la entrevista</span>
+                        <span className="text-[11px] text-slate-500">(No afecta el tiempo)</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : activeEventStep === 1.5 ? (
+                  <div className="space-y-6 text-center py-6">
+                    <p className="text-sm font-bold text-amber-300 font-mono border border-amber-500/20 bg-amber-500/10 p-4 rounded-xl">
+                      "El judicante menciona que es urgente que reciba la entrevista."
+                    </p>
+                    <p className="text-xs text-red-400 font-mono">
+                      (Se restarán 5 minutos adicionales para realizar la entrevista urgente)
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setElapsedSeconds(prev => prev + 300); // Resta 5 min adicionales
+                        setActiveEventStep(2);
+                        setEventResponses(prev => ({
+                          ...prev,
+                          [activeEvent.id]: {
+                            name: activeEvent.nombre,
+                            type: 'persona',
+                            decision: 'Remitido al judicante y atendido de urgencia (Se restaron 8 minutos en total)'
+                          }
+                        }));
+                      }}
+                      className="rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 px-8 py-3 text-sm font-bold text-amber-200 transition font-mono"
+                    >
+                      Continuar a la entrevista
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-800 bg-[#02050b] p-2 aspect-video overflow-hidden">
+                      <img
+                        src={activeEvent.imagen_url}
+                        alt="Entrevista"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveEvent(null);
+                        }}
+                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 px-6 py-2.5 text-xs font-bold text-red-200 transition font-mono"
+                      >
+                        Finalizar Entrevista
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>
