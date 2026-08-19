@@ -1364,6 +1364,14 @@ function DashboardInvestigator({ token }) {
 
   // Triggering check
   useEffect(() => {
+    console.log('[ALERT TRIGGER CHECK] checking...', {
+      elapsedSeconds,
+      tutorialStep,
+      investigationFinished,
+      despachoEventsCount: despachoEvents.length,
+      shownCount: shownEventIds.length
+    });
+
     if (investigationFinished || tutorialStep !== 0 || despachoEvents.length === 0) {
       return;
     }
@@ -1379,18 +1387,22 @@ function DashboardInvestigator({ token }) {
       expectedTriggerCount = 1 + Math.floor((elapsedSeconds - 120) / 600);
     }
 
+    console.log('[ALERT TRIGGER CHECK] expected count:', expectedTriggerCount, 'shown count:', shownEventIds.length);
+
     if (shownEventIds.length < expectedTriggerCount) {
       const available = despachoEvents.filter(e => !shownEventIds.includes(e.id));
+      console.log('[ALERT TRIGGER CHECK] Available events for trigger:', available);
       if (available.length > 0) {
         const randomIndex = Math.floor(Math.random() * available.length);
         const chosen = available[randomIndex];
+        console.log('[ALERT TRIGGER CHECK] TRIGGERING EVENT:', chosen);
         setActiveEvent(chosen);
         setActiveEventStep(1);
         setEventReplyText('');
         setShownEventIds(prev => [...prev, chosen.id]);
       }
     }
-  }, [elapsedSeconds, despachoEvents, shownEventIds, investigationFinished, showWelcome]);
+  }, [elapsedSeconds, despachoEvents, shownEventIds, investigationFinished, tutorialStep]);
 
   const isolatedCases = useMemo(() => {
     return carpetas.filter((caseItem) => {
