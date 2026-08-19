@@ -1373,7 +1373,12 @@ function DashboardInvestigator({ token }) {
       return;
     }
 
-    const expectedTriggerCount = Math.floor(elapsedSeconds / 600);
+    // Trigger first alert at 2 minutes (120s), subsequent ones every 10 minutes (600s)
+    let expectedTriggerCount = 0;
+    if (elapsedSeconds >= 120) {
+      expectedTriggerCount = 1 + Math.floor((elapsedSeconds - 120) / 600);
+    }
+
     if (shownEventIds.length < expectedTriggerCount) {
       const available = despachoEvents.filter(e => !shownEventIds.includes(e.id));
       if (available.length > 0) {
