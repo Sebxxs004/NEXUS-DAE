@@ -1364,7 +1364,7 @@ function DashboardInvestigator({ token }) {
 
   // Triggering check
   useEffect(() => {
-    if (investigationFinished || showWelcome || despachoEvents.length === 0) {
+    if (investigationFinished || tutorialStep !== 0 || despachoEvents.length === 0) {
       return;
     }
     
@@ -3899,7 +3899,10 @@ function DashboardInvestigator({ token }) {
                 <div className="flex justify-center pt-2">
                   <button
                     type="button"
-                    onClick={() => setTutorialStep(0)}
+                    onClick={() => {
+                      setTutorialStep(0);
+                      completarPrimeraVez();
+                    }}
                     className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                   >
                     Finalizar Paseo 🏁
