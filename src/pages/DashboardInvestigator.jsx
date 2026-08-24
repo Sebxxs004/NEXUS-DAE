@@ -469,6 +469,7 @@ function DashboardInvestigator({ token }) {
 
   const [startTimestamp, setStartTimestamp] = useState(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(() => usuario?.elapsed_seconds || 0);
+  const [profileSyncDone, setProfileSyncDone] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -561,6 +562,14 @@ function DashboardInvestigator({ token }) {
     return () => clearInterval(timerId);
   }, [authHeaders, token]);
 
+  // Sync elapsedSeconds from backend profile ONCE when it first loads
+  useEffect(() => {
+    if (!profileSyncDone && usuario?.elapsed_seconds != null) {
+      setElapsedSeconds(usuario.elapsed_seconds);
+      setProfileSyncDone(true);
+    }
+  }, [usuario, profileSyncDone]);
+
   useEffect(() => {
     if (investigationFinished || validationResult) {
       return;
@@ -570,6 +579,15 @@ function DashboardInvestigator({ token }) {
     }, 1000);
     return () => clearInterval(interval);
   }, [investigationFinished, validationResult]);
+
+  // Autosave elapsed time every 30 seconds to avoid losing progress
+  useEffect(() => {
+    if (investigationFinished || validationResult) return;
+    const autosaveInterval = setInterval(() => {
+      guardarTiempo(elapsedSeconds).catch(console.error);
+    }, 30000);
+    return () => clearInterval(autosaveInterval);
+  }, [elapsedSeconds, investigationFinished, validationResult]);
 
   useEffect(() => {
     if (showWelcome) {
