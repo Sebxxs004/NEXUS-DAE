@@ -41,6 +41,8 @@ function CasesSidebarModule({
   investigationFinished,
   tutorialStep,
   setTutorialStep,
+  onStartDecisionForGroup,
+  groupJustifications,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDelito, setSelectedDelito] = useState('Todos');
@@ -633,21 +635,21 @@ function CasesSidebarModule({
                             
                             {/* Pencil Edit Icon */}
                             <button
-                              type="button"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (investigationFinished) return;
-                                  setEditingGroupId(group.id);
-                                  setEditGroupName(group.name);
-                              }}
-                              disabled={investigationFinished}
-                              title="Editar nombre"
-                              className="opacity-0 group-hover/folder:opacity-100 p-0.5 hover:bg-slate-800 hover:text-cyan-400 rounded transition ml-1 shrink-0"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
-                            </button>
+                               type="button"
+                               onClick={(e) => {
+                                   e.stopPropagation();
+                                   if (investigationFinished) return;
+                                   setEditingGroupId(group.id);
+                                   setEditGroupName(group.name);
+                               }}
+                               disabled={investigationFinished}
+                               title="Editar nombre"
+                               className="opacity-70 hover:opacity-100 p-0.5 hover:bg-slate-800 text-slate-400 hover:text-cyan-400 rounded transition ml-1.5 shrink-0"
+                             >
+                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                               </svg>
+                             </button>
                           </div>
                           <span className="text-[10px] text-slate-500 shrink-0 font-mono">
                             {isExpanded ? '▼' : '▶'} ({group.caseIds.length})
@@ -678,7 +680,7 @@ function CasesSidebarModule({
                                       handleRemoveFromGroup(group.id, caseId);
                                     }}
                                     title="Eliminar del grupo"
-                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition"
+                                    className="opacity-70 hover:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition shrink-0"
                                   >
                                     <FiX size={12} />
                                   </button>
@@ -687,6 +689,30 @@ function CasesSidebarModule({
                             );
                           })}
                         </div>
+                      )}
+
+                      {/* Decision Button per Group – always visible unless it is the mock tutorial group */}
+                      {!isEditing && onStartDecisionForGroup && group.id !== 'mock-tutorial-group' && (
+                        (() => {
+                          const hasDecisions = group.decisions && group.decisions.length > 0;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onStartDecisionForGroup(group);
+                              }}
+                              className={`mt-2 w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[10px] font-bold font-mono uppercase tracking-wider transition-all border ${
+                                hasDecisions
+                                  ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40'
+                                  : 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-400/60'
+                              }`}
+                            >
+                              <span>{hasDecisions ? '✓ Decisiones tomadas' : '¿Qué decisiones vas a tomar ahora?'}</span>
+                              <span className={`text-[10px] ${hasDecisions ? 'text-emerald-400' : 'text-cyan-400'}`}>➔</span>
+                            </button>
+                          );
+                        })()
                       )}
                     </div>
                   );
@@ -869,7 +895,7 @@ function CasesSidebarModule({
         <div className="fixed inset-0 z-[20000] flex flex-col items-center justify-center p-4">
           {/* Backdrop with no blur to keep screen clean */}
           <div className={`absolute inset-0 transition-all ${
-            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
+            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 5 || tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
           }`} />
 
           {/* Tutorial Step Cards */}

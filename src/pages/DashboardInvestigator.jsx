@@ -1618,6 +1618,15 @@ function DashboardInvestigator({ token }) {
     setIsDecisionFlowModalOpen(true);
   };
 
+  const startDecisionFlowForGroup = (group) => {
+    setPendingDecisionGroups([group]);
+    setActiveDecisionGroupIndex(0);
+    setSelectedDecisionOptions(group.decisions || []);
+    setDecisionJustifications(group.decisionJustifications || {});
+    setDecisionFlowCompleted(false);
+    setIsDecisionFlowModalOpen(true);
+  };
+
   const handleOptionToggle = (optionId) => {
     setSelectedDecisionOptions((prev) =>
       prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId]
@@ -2674,6 +2683,8 @@ function DashboardInvestigator({ token }) {
           onSwitchToLobby={() => setActiveSection('lobby')}
           tutorialStep={tutorialStep}
           setTutorialStep={setTutorialStep}
+          onStartDecisionForGroup={startDecisionFlowForGroup}
+          groupJustifications={groupJustifications}
         />
       )}
 
@@ -2870,6 +2881,7 @@ function DashboardInvestigator({ token }) {
                       className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Reiniciar
+{{ ... }}
                     </button>
                     <button
                       type="button"
@@ -2881,373 +2893,229 @@ function DashboardInvestigator({ token }) {
                     </button>
                   </div>
                 </div>
-              </div>
             </main>
           </div>
+        </>
+      )}
 
-          {isDecisionFlowModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
-              <div className="w-full max-w-5xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
+      {isDecisionFlowModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-5xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
 
-                {decisionFlowCompleted ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-6">
-                    <div className="h-16 w-16 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-3xl animate-bounce">
-                      ✓
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-xl font-bold text-slate-100 uppercase tracking-widest">
-                        Decisiones Completadas
-                      </h3>
-                      <p className="text-sm text-slate-400 mt-2 font-mono">
-                        Ya has tomado decisiones de todos los grupos creados en el despacho.
-                      </p>
-                    </div>
-                    <div className="flex gap-4">
+            {decisionFlowCompleted ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-6">
+                <div className="h-16 w-16 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-3xl animate-bounce">
+                  ✓
+                </div>
+                <div>
+                  <h3 className="font-mono text-xl font-bold text-slate-100 uppercase tracking-widest">
+                    Decisiones Completadas
+                  </h3>
+                  <p className="text-sm text-slate-400 mt-2 font-mono">
+                    Ya has tomado decisiones de todos los grupos creados en el despacho.
+                  </p>
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsDecisionFlowModalOpen(false)}
+                    className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-6 py-3 text-sm font-bold text-slate-300 transition font-mono"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenTerminarFlow}
+                    className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-3 text-sm font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                  >
+                    Terminar investigación
+                  </button>
+                </div>
+              </div>
+            ) : (
+              (() => {
+                const currentGroup = pendingDecisionGroups[activeDecisionGroupIndex];
+                if (!currentGroup) return null;
+                return (
+                  <>
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-cyan-300 font-mono">
+                          Toma de decisiones • Grupo {activeDecisionGroupIndex + 1} de {pendingDecisionGroups.length}
+                        </p>
+                        <h2 className="font-mono text-lg font-bold text-slate-100 capitalize mt-1">
+                          {currentGroup.name}
+                        </h2>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setIsDecisionFlowModalOpen(false)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-6 py-3 text-sm font-bold text-slate-300 transition font-mono"
+                        className="rounded-lg border border-slate-700/60 p-1.5 text-slate-400 hover:text-white transition"
                       >
-                        Cerrar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenTerminarFlow}
-                        className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-3 text-sm font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        Terminar investigación
+                        <FiX size={20} />
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  (() => {
-                    const currentGroup = pendingDecisionGroups[activeDecisionGroupIndex];
-                    if (!currentGroup) return null;
-                    return (
-                      <>
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300 font-mono">
-                              Toma de decisiones • Grupo {activeDecisionGroupIndex + 1} de {pendingDecisionGroups.length}
-                            </p>
-                            <h2 className="font-mono text-lg font-bold text-slate-100 capitalize mt-1">
-                              {currentGroup.name}
-                            </h2>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsDecisionFlowModalOpen(false)}
-                            className="rounded-lg border border-slate-700/60 p-1.5 text-slate-400 hover:text-white transition"
-                          >
-                            <FiX size={20} />
-                          </button>
+
+                    {/* Modal Body */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto pr-1">
+                      {/* Left Column: Decisions & Questions */}
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="font-mono text-base font-bold text-slate-100">
+                            ¿Qué vas a decidir ahora?
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1 font-mono">
+                            Selecciona una o más opciones y justifica cada decisión:
+                          </p>
                         </div>
 
-                        {/* Modal Body */}
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto pr-1">
-                          {/* Left Column: Decisions & Questions */}
-                          <div className="space-y-6">
-                            <div>
-                              <h3 className="font-mono text-base font-bold text-slate-100">
-                                ¿Qué vas a decidir ahora?
-                              </h3>
-                              <p className="text-xs text-slate-400 mt-1 font-mono">
-                                Selecciona una o más opciones y justifica cada decisión:
-                              </p>
-                            </div>
+                        {/* Checkbox Options List */}
+                        <div className="space-y-3">
+                          {PLAN_ACCION_OPTIONS.map((option) => {
+                            const optionState = planAccion[option.key] || {
+                              selected: false,
+                              cual: '',
+                              justificacion: '',
+                            };
+                            return (
+                              <div
+                                key={option.key}
+                                className={`rounded-xl border p-4 transition-all duration-300 ${
+                                  optionState.selected
+                                    ? 'border-cyan-500/50 bg-cyan-950/15'
+                                    : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                                }`}
+                              >
+                                <label className="flex items-start gap-3 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={optionState.selected}
+                                    onChange={() => {
+                                      const nowSelected = !optionState.selected;
+                                      updatePlanAccionOption(option.key, { selected: nowSelected });
 
-                            {/* Checkbox Options List */}
-                            <div className="space-y-3">
-                              {DECISION_OPTIONS.map((opt) => {
-                                const isChecked = selectedDecisionOptions.includes(opt.id);
-                                return (
-                                  <label key={opt.id} className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleOptionToggle(opt.id)}
-                                      className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                                    />
-                                    <span className="font-mono text-xs leading-relaxed">{opt.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-
-                            {/* Questions/Textareas rendered in the selected order */}
-                            <div className="space-y-4 pt-4 border-t border-slate-800/60">
-                              {selectedDecisionOptions.map((optId, idx) => {
-                                const opt = DECISION_OPTIONS.find((o) => o.id === optId);
-                                if (!opt) return null;
-                                return (
-                                  <div key={optId} className="space-y-1.5 animate-welcome-zoom">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold uppercase tracking-wider">
-                                        Prioridad {idx + 1}
-                                      </span>
-                                      <p className="text-xs font-bold text-cyan-300 font-mono">
-                                        {opt.question}
-                                      </p>
-                                    </div>
-                                    <textarea
-                                      rows={2}
-                                      value={decisionJustifications[optId] || ''}
-                                      onChange={(e) => handleJustificationChange(optId, e.target.value)}
-                                      placeholder="Escribe la justificación de esta decisión..."
-                                      className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                                    />
+                                      // Sincronizar con selectedDecisionOptions para que cuente para validar
+                                      if (nowSelected) {
+                                        setSelectedDecisionOptions((prev) =>
+                                          prev.includes(option.key) ? prev : [...prev, option.key]
+                                        );
+                                      } else {
+                                        setSelectedDecisionOptions((prev) =>
+                                          prev.filter((x) => x !== option.key)
+                                        );
+                                      }
+                                    }}
+                                    className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500/30 focus:ring-offset-slate-950"
+                                  />
+                                  <div className="space-y-1">
+                                    <span className="font-mono text-xs font-bold text-slate-200 tracking-wider">
+                                      {option.label}
+                                    </span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                </label>
 
-                          {/* Right Column: Group Info panel */}
-                          <div className="rounded-xl border border-slate-800 bg-[#02050b]/60 p-5 space-y-4 h-fit">
-                            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 border-b border-slate-800 pb-2">
-                              Información General del Grupo
-                            </h4>
-
-                            <div className="space-y-3 font-mono text-xs">
-                              <div>
-                                <span className="text-slate-500">Criterio de asociación:</span>
-                                <p className="text-slate-200 mt-1">{currentGroup.asociarPor || 'No especificado'}</p>
-                              </div>
-
-                              <div>
-                                <span className="text-slate-500">Justificación inicial:</span>
-                                <p className="text-slate-200 mt-1 whitespace-pre-wrap leading-relaxed">
-                                  {currentGroup.justificacion || 'Sin justificación previa registrada.'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <span className="text-slate-500 block mb-2">Miembros del grupo:</span>
-                                <div className="space-y-1.5 pl-2 border-l border-cyan-500/20">
-                                  {(currentGroup.caseIds || []).map((caseId) => {
-                                    const c = carpetas.find(item => item.id === caseId);
-                                    if (!c) return null;
-                                    return (
-                                      <div key={caseId} className="text-slate-300 flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                                        <span>Radicado: {c.nombre.replace("Caso ", "")}</span>
+                                {optionState.selected && (
+                                  <div className="mt-4 pl-7 space-y-3 border-l border-cyan-500/20 animate-fade-in">
+                                    {option.requiresCual && (
+                                      <div className="space-y-1.5">
+                                        <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest">
+                                          {option.cualLabel}
+                                        </span>
+                                        <input
+                                          type="text"
+                                          value={optionState.cual}
+                                          onChange={(e) =>
+                                            updatePlanAccionOption(option.key, { cual: e.target.value })
+                                          }
+                                          placeholder="Especifica la autoridad o despacho"
+                                          className="w-full rounded-lg border border-slate-800 bg-[#030712] px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
+                                        />
                                       </div>
-                                    );
-                                  })}
+                                    )}
+                                    <div className="space-y-1.5">
+                                      <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest">
+                                        Justificación de esta decisión:
+                                      </span>
+                                      <textarea
+                                        rows={3}
+                                        value={optionState.justificacion}
+                                        onChange={(e) => {
+                                          updatePlanAccionOption(option.key, { justificacion: e.target.value });
+                                          handleJustificationChange(option.key, e.target.value);
+                                        }}
+                                        placeholder="Redacta la justificación legal o investigativa de esta decisión específica"
+                                        className="w-full rounded-lg border border-slate-800 bg-[#030712] p-3 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Right Column: Case summary and associations preview */}
+                      <div className="flex flex-col h-full bg-slate-950/40 border border-slate-800 rounded-xl p-5 overflow-hidden">
+                        <span className="font-mono text-[10px] text-slate-400 uppercase tracking-wider">
+                          Casos en este grupo:
+                        </span>
+                        <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1">
+                          {currentGroup.caseIds.map((caseId) => {
+                            const caseItem = carpetas.find((c) => c.id === caseId);
+                            if (!caseItem) return null;
+                            return (
+                              <div
+                                key={caseId}
+                                className="flex items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-900/30 p-3"
+                              >
+                                <div className="h-8 w-8 bg-cyan-500/10 border border-cyan-400/20 rounded-lg flex items-center justify-center text-cyan-400 text-sm">
+                                  📄
+                                </div>
+                                <div className="truncate">
+                                  <p className="font-mono text-xs font-bold text-slate-200">
+                                    Radicado: {caseItem.nombre.replace("Caso ", "")}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 capitalize mt-0.5">
+                                    {caseItem.tipo_delito || 'Delito no especificado'}
+                                  </p>
                                 </div>
                               </div>
-                            </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="border-t border-slate-800 pt-4 mt-4 space-y-3 shrink-0">
+                          <div className="bg-slate-900/50 border border-slate-800 p-3 rounded-lg">
+                            <span className="font-mono text-[10px] text-slate-400 uppercase tracking-wider block">
+                              Justificación de Asociación:
+                            </span>
+                            <p className="text-xs text-slate-300 font-mono italic mt-1 leading-relaxed">
+                              "{currentGroup.justificacion || 'No especificada.'}"
+                            </p>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setIsDecisionFlowModalOpen(false)}
+                              className="flex-1 rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 py-3 text-xs font-bold text-slate-300 transition font-mono"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveDecisionForGroup(currentGroup)}
+                              className="flex-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 py-3 text-xs font-bold text-white transition font-mono shadow-lg shadow-cyan-950/20"
+                            >
+                              Guardar decisión
+                            </button>
                           </div>
                         </div>
-
-                        {/* Modal Footer */}
-                        <div className="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
-                          <button
-                            type="button"
-                            onClick={() => setIsDecisionFlowModalOpen(false)}
-                            className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNextDecisionGroup}
-                            className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg font-mono"
-                          >
-                            {activeDecisionGroupIndex < pendingDecisionGroups.length - 1 ? 'Siguiente Grupo' : 'Aceptar'}
-                          </button>
-                        </div>
-                      </>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
-          )}
-
-          {isJustifyModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4 py-8 backdrop-blur-sm animate-welcome-zoom">
-              <div className="w-full max-w-md rounded-2xl border border-cyan-500/20 bg-slate-900 p-6 shadow-2xl">
-                <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider mb-1">
-                  Justificar Asociación Múltiple
-                </h3>
-                <p className="text-xs text-slate-400 mb-6 font-mono">
-                  Se creará una relación en cadena para los casos seleccionados.
-                </p>
-
-                <div className="space-y-4">
-                  {/* Target Group (Only shown in 'add' mode) */}
-                  {justifyMode === 'add' && targetGroupForAdd && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                        Grupo de destino:
-                      </label>
-                      <div className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-300 font-mono capitalize">
-                        {targetGroupForAdd.name}
                       </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                      Asociar por:
-                    </label>
-                    <select
-                      value={asociarPor}
-                      onChange={(e) => setAsociarPor(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
-                    >
-                      <option value="Modalidad">Modalidad</option>
-                      <option value="Modus operandi">Modus operandi</option>
-                      <option value="Patrón">Patrón</option>
-                      <option value="Criterio de Conexidad">Criterio de Conexidad</option>
-                      <option value="Fenómeno criminal">Fenómeno criminal</option>
-                      <option value="Otros">Otros</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                      Justificación:
-                    </label>
-                    <textarea
-                      value={justificacionText}
-                      onChange={(e) => setJustificacionText(e.target.value)}
-                      placeholder="Escribe los detalles de la asociación..."
-                      rows={4}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setIsJustifyModalOpen(false)}
-                    className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition shadow-md font-mono"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmGroupJustification}
-                    className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-5 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg shadow-cyan-950/20 font-mono"
-                  >
-                    Confirmar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isTerminarModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[85vh]">
-
-                {terminarStep === 1 ? (
-                  <>
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                      <div>
-                        <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
-                          Casos Aislados Detectados
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1 font-mono">
-                          (Opcional) Justifica por qué consideras que estos radicados no guardan relación con otros grupos.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsTerminarModalOpen(false)}
-                        className="rounded-lg p-1 hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                      >
-                        <FiX size={18} />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                      {isolatedCases.length === 0 ? (
-                        <p className="text-sm text-slate-500 font-mono py-8 text-center">
-                          No hay casos aislados. Todos los radicados han sido asociados a algún grupo.
-                        </p>
-                      ) : (
-                        isolatedCases.map((c) => {
-                          const radicadoName = c.nombre.replace("Caso ", "");
-                          return (
-                            <div key={c.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2">
-                              <p className="text-xs font-bold text-slate-300 font-mono">
-                                Radicado: {radicadoName} • Delito: {c.tipo_delito || 'No especificado'}
-                              </p>
-                              <textarea
-                                rows={2}
-                                value={isolatedJustifications[c.id] || ''}
-                                onChange={(e) => setIsolatedJustifications({
-                                  ...isolatedJustifications,
-                                  [c.id]: e.target.value
-                                })}
-                                placeholder="Escribe la justificación de aislamiento (opcional)..."
-                                className="w-full rounded-lg border border-slate-850 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => setIsTerminarModalOpen(false)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                      >
-                        Volver
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTerminarStep(2)}
-                        className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition font-mono"
-                      >
-                        Siguiente
-                      </button>
                     </div>
                   </>
-                ) : (
-                  <div className="text-center p-6 space-y-6">
-                    <div className="h-16 w-16 bg-amber-500/10 border border-amber-400/30 rounded-full flex items-center justify-center text-amber-400 text-3xl mx-auto">
-                      ⚠
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-lg font-bold text-slate-100 uppercase tracking-widest">
-                        ¿Estás seguro de terminar la investigación?
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-2 font-mono max-w-md mx-auto leading-relaxed">
-                        Al confirmar, el temporizador se detendrá, el tablero de nodos y la capacidad de crear grupos quedarán desactivados permanentemente, y se descargará tu reporte general en PDF.
-                      </p>
-                    </div>
-
-                    <div className="flex justify-center gap-4 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setTerminarStep(1)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                      >
-                        Atrás
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setIsTerminarModalOpen(false);
-                          setInvestigationFinished(true);
-                          await generateFinalReportPdf();
-                        }}
-                        className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-2.5 text-xs font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        Aceptar y Terminar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
