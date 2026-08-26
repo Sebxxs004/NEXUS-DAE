@@ -580,6 +580,8 @@ function DashboardInvestigator({ token }) {
     return () => clearInterval(interval);
   }, [investigationFinished, validationResult]);
 
+  // Tutorial steps 10-12: no longer opens decision modal (feature removed)
+
   // Autosave elapsed time every 30 seconds to avoid losing progress
   useEffect(() => {
     if (investigationFinished || validationResult) return;
@@ -1299,13 +1301,7 @@ function DashboardInvestigator({ token }) {
     'border-teal-500 bg-teal-950/20 shadow-[0_0_15px_rgba(20,184,166,0.25)]',
   ], []);
 
-  // Decision Flow states
-  const [isDecisionFlowModalOpen, setIsDecisionFlowModalOpen] = useState(false);
-  const [activeDecisionGroupIndex, setActiveDecisionGroupIndex] = useState(0);
-  const [selectedDecisionOptions, setSelectedDecisionOptions] = useState([]);
-  const [decisionJustifications, setDecisionJustifications] = useState({});
-  const [decisionFlowCompleted, setDecisionFlowCompleted] = useState(false);
-  const [pendingDecisionGroups, setPendingDecisionGroups] = useState([]);
+  // Decision Flow states removed
 
   // Terminar Investigación states
   const [isTerminarModalOpen, setIsTerminarModalOpen] = useState(false);
@@ -1394,14 +1390,6 @@ function DashboardInvestigator({ token }) {
       setLastEventTriggeredTime(elapsedSeconds);
       return;
     }
-
-    console.log('[ALERT TRIGGER CHECK] checking...', {
-      elapsedSeconds,
-      lastEventTriggeredTime,
-      secondsSinceLast: elapsedSeconds - lastEventTriggeredTime,
-      despachoEventsCount: despachoEvents.length,
-      shownCount: shownEventIds.length
-    });
     
     // If there is already an active event on screen, defer triggering the next one
     if (activeEvent !== null) {
@@ -1577,7 +1565,6 @@ function DashboardInvestigator({ token }) {
   };
 
   const handleOpenTerminarFlow = () => {
-    setIsDecisionFlowModalOpen(false);
     setTerminarStep(1);
     setIsTerminarModalOpen(true);
   };
@@ -1587,90 +1574,7 @@ function DashboardInvestigator({ token }) {
     setIsTerminarModalOpen(true);
   };
 
-  const DECISION_OPTIONS = useMemo(() => [
-    { id: 1, label: '1. Orden a la Policía Judicial.', question: '¿Qué actividad ordenará la Policía Judicial?' },
-    { id: 2, label: '2. Orden de archivo.', question: '¿Por qué se ordenará el archivo del caso?' },
-    { id: 3, label: '3. Solicitud de audiencia ante juez de control de garantías.', question: '¿Qué solicitud de audiencia se presentará ante el juez?' },
-    { id: 4, label: '4. Priorizar investigación.', question: '¿Cuáles son los criterios para priorizar la investigación?' },
-    { id: 5, label: '5. Caracterización de víctimas.', question: '¿Por qué debe caracterizarse a las víctimas?' },
-    { id: 6, label: '6. Fenómeno Criminal', question: '¿Cómo se define el Fenómeno Criminal en esta decisión?' },
-    { id: 7, label: '7. Otro.', question: '¿Qué otra acción se tomará y por qué?' },
-  ], []);
-
-  const startDecisionFlow = () => {
-    if (createdGroupsList.length === 0) {
-      setError('Debes crear al menos un grupo en procesos del despacho o en el tablero antes de tomar decisiones.');
-      return;
-    }
-    // Filter only groups that don't have decisions yet
-    const undecided = createdGroupsList.filter((g) => !g.decisions || g.decisions.length === 0);
-    if (undecided.length === 0) {
-      setPendingDecisionGroups([]);
-      setDecisionFlowCompleted(true);
-      setIsDecisionFlowModalOpen(true);
-      return;
-    }
-    setPendingDecisionGroups(undecided);
-    setActiveDecisionGroupIndex(0);
-    setSelectedDecisionOptions([]);
-    setDecisionJustifications({});
-    setDecisionFlowCompleted(false);
-    setIsDecisionFlowModalOpen(true);
-  };
-
-  const handleOptionToggle = (optionId) => {
-    setSelectedDecisionOptions((prev) =>
-      prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId]
-    );
-  };
-
-  const handleJustificationChange = (optionId, text) => {
-    setDecisionJustifications((prev) => ({
-      ...prev,
-      [optionId]: text
-    }));
-  };
-
-  const handleNextDecisionGroup = () => {
-    if (selectedDecisionOptions.length === 0) {
-      alert('Por favor selecciona al menos una opción antes de continuar.');
-      return;
-    }
-
-    for (const optId of selectedDecisionOptions) {
-      if (!decisionJustifications[optId] || !decisionJustifications[optId].trim()) {
-        alert('Por favor rellena la justificación para todas las opciones seleccionadas.');
-        return;
-      }
-    }
-
-    // Save decisions for the current group
-    const currentGroup = pendingDecisionGroups[activeDecisionGroupIndex];
-    if (currentGroup) {
-      const decisionsForGroup = selectedDecisionOptions.map((optId) => ({
-        optionId: optId,
-        label: DECISION_OPTIONS.find((o) => o.id === optId)?.label || '',
-        justification: decisionJustifications[optId] || ''
-      }));
-
-      const guardarGrupos = useAuthStore.getState().guardarGrupos;
-      const updatedGroups = createdGroupsList.map((g) => {
-        if (g.id === currentGroup.id) {
-          return { ...g, decisions: decisionsForGroup };
-        }
-        return g;
-      });
-      guardarGrupos(updatedGroups);
-    }
-
-    if (activeDecisionGroupIndex < pendingDecisionGroups.length - 1) {
-      setActiveDecisionGroupIndex((prev) => prev + 1);
-      setSelectedDecisionOptions([]);
-      setDecisionJustifications({});
-    } else {
-      setDecisionFlowCompleted(true);
-    }
-  };
+  // Decision flow functions removed
 
   const onNodeClick = (nodeId) => {
     if (investigationFinished || validationResult) {
@@ -2634,14 +2538,15 @@ function DashboardInvestigator({ token }) {
 
             {/* Right Button */}
             <button
-              onClick={() => setActiveSection('tablero')}
-              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-cyan-500/20 bg-slate-950/80 hover:border-cyan-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+              onClick={handleTerminarInvestigacionClick}
+              disabled={Boolean(validationResult) || feedbackSubmitted || finishing || investigationFinished}
+              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border border-emerald-500/20 bg-slate-950/80 hover:border-emerald-400 hover:bg-slate-900/90 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
-                <FiZap size={20} />
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
+                <FiCheckCircle size={20} />
               </div>
-              <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Toma de decisiones</span>
-              <span className="text-xs text-slate-400">Patrones y conexiones</span>
+              <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-emerald-300">Finalizar investigación</span>
+              <span className="text-xs text-slate-400">Terminar juego y generar reporte PDF</span>
             </button>
           </div>
         </div>
@@ -2674,6 +2579,8 @@ function DashboardInvestigator({ token }) {
           onSwitchToLobby={() => setActiveSection('lobby')}
           tutorialStep={tutorialStep}
           setTutorialStep={setTutorialStep}
+          onStartDecisionForGroup={null}
+          groupJustifications={groupJustifications}
         />
       )}
 
@@ -2843,22 +2750,28 @@ function DashboardInvestigator({ token }) {
                   </div>
                 </div>
 
-                {/* Right Column: Tomar decisiones & Action controls */}
+                {/* Right Column: Finalizar Investigación & Reiniciar */}
                 <div className="h-full flex flex-col justify-between gap-4">
                   <button
+                    id="btn-finalizar-investigacion"
                     type="button"
-                    onClick={startDecisionFlow}
-                    className="flex-1 w-full rounded-xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950/60 to-slate-900/80 p-6 flex flex-col items-center justify-center text-center space-y-4 hover:border-cyan-400/80 group transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] relative overflow-hidden"
+                    onClick={handleTerminarInvestigacionClick}
+                    disabled={Boolean(validationResult) || feedbackSubmitted || finishing || investigationFinished}
+                    className={`flex-1 w-full rounded-xl border p-6 flex flex-col items-center justify-center text-center space-y-4 group transition-all duration-300 relative overflow-hidden ${
+                      (tutorialStep === 10 || tutorialStep === 13)
+                        ? 'ring-4 ring-emerald-400 border-emerald-400 bg-emerald-950/40 shadow-[0_0_35px_rgba(16,185,129,0.55)] animate-pulse'
+                        : 'border-emerald-500/35 bg-gradient-to-br from-emerald-950/60 to-slate-900/80 hover:border-emerald-400/80 hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] disabled:cursor-not-allowed disabled:opacity-50'
+                    }`}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms]" />
-                    <span className="font-mono text-base md:text-lg font-bold tracking-[0.2em] text-cyan-300 group-hover:text-cyan-200 uppercase">
-                      Tomar decisiones
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms]" />
+                    <span className="font-mono text-base md:text-lg font-bold tracking-[0.2em] text-emerald-300 group-hover:text-emerald-200 uppercase">
+                      Finalizar Investigación
                     </span>
                     <span className="text-xs text-slate-400 font-mono">
-                      Definir acciones para los grupos
+                      Generar reporte y cerrar sesión de juego
                     </span>
-                    <div className="text-3xl text-cyan-400 group-hover:translate-x-3 transition-transform duration-300 ease-out">
-                      ➔
+                    <div className="text-3xl text-emerald-400 group-hover:translate-x-3 transition-transform duration-300 ease-out">
+                      🏁
                     </div>
                   </button>
 
@@ -2871,385 +2784,123 @@ function DashboardInvestigator({ token }) {
                     >
                       Reiniciar
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleTerminarInvestigacionClick}
-                      disabled={Boolean(validationResult) || feedbackSubmitted || finishing || investigationFinished}
-                      className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Terminar
-                    </button>
                   </div>
                 </div>
               </div>
             </main>
           </div>
+        </>
+      )}
 
-          {isDecisionFlowModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
-              <div className="w-full max-w-5xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
+      {isTerminarModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[85vh]">
 
-                {decisionFlowCompleted ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-6">
-                    <div className="h-16 w-16 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-3xl animate-bounce">
-                      ✓
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-xl font-bold text-slate-100 uppercase tracking-widest">
-                        Decisiones Completadas
-                      </h3>
-                      <p className="text-sm text-slate-400 mt-2 font-mono">
-                        Ya has tomado decisiones de todos los grupos creados en el despacho.
-                      </p>
-                    </div>
-                    <div className="flex gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setIsDecisionFlowModalOpen(false)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-6 py-3 text-sm font-bold text-slate-300 transition font-mono"
-                      >
-                        Cerrar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenTerminarFlow}
-                        className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-3 text-sm font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        Terminar investigación
-                      </button>
-                    </div>
+            {terminarStep === 1 ? (
+              <>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                  <div>
+                    <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
+                      Casos Aislados Detectados
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1 font-mono">
+                      (Opcional) Justifica por qué consideras que estos radicados no guardan relación con otros grupos.
+                    </p>
                   </div>
-                ) : (
-                  (() => {
-                    const currentGroup = pendingDecisionGroups[activeDecisionGroupIndex];
-                    if (!currentGroup) return null;
-                    return (
-                      <>
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300 font-mono">
-                              Toma de decisiones • Grupo {activeDecisionGroupIndex + 1} de {pendingDecisionGroups.length}
-                            </p>
-                            <h2 className="font-mono text-lg font-bold text-slate-100 capitalize mt-1">
-                              {currentGroup.name}
-                            </h2>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsDecisionFlowModalOpen(false)}
-                            className="rounded-lg border border-slate-700/60 p-1.5 text-slate-400 hover:text-white transition"
-                          >
-                            <FiX size={20} />
-                          </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsTerminarModalOpen(false)}
+                    className="rounded-lg p-1 hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                  >
+                    <FiX size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {isolatedCases.length === 0 ? (
+                    <p className="text-sm text-slate-500 font-mono py-8 text-center">
+                      No hay casos aislados. Todos los radicados han sido asociados a algún grupo.
+                    </p>
+                  ) : (
+                    isolatedCases.map((c) => {
+                      const radicadoName = c.nombre.replace("Caso ", "");
+                      return (
+                        <div key={c.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2">
+                          <p className="text-xs font-bold text-slate-300 font-mono">
+                            Radicado: {radicadoName} • Delito: {c.tipo_delito || 'No especificado'}
+                          </p>
+                          <textarea
+                            rows={2}
+                            value={isolatedJustifications[c.id] || ''}
+                            onChange={(e) => setIsolatedJustifications({
+                              ...isolatedJustifications,
+                              [c.id]: e.target.value
+                            })}
+                            placeholder="Escribe la justificación de aislamiento (opcional)..."
+                            className="w-full rounded-lg border border-slate-850 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
+                          />
                         </div>
-
-                        {/* Modal Body */}
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto pr-1">
-                          {/* Left Column: Decisions & Questions */}
-                          <div className="space-y-6">
-                            <div>
-                              <h3 className="font-mono text-base font-bold text-slate-100">
-                                ¿Qué vas a decidir ahora?
-                              </h3>
-                              <p className="text-xs text-slate-400 mt-1 font-mono">
-                                Selecciona una o más opciones y justifica cada decisión:
-                              </p>
-                            </div>
-
-                            {/* Checkbox Options List */}
-                            <div className="space-y-3">
-                              {DECISION_OPTIONS.map((opt) => {
-                                const isChecked = selectedDecisionOptions.includes(opt.id);
-                                return (
-                                  <label key={opt.id} className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleOptionToggle(opt.id)}
-                                      className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                                    />
-                                    <span className="font-mono text-xs leading-relaxed">{opt.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-
-                            {/* Questions/Textareas rendered in the selected order */}
-                            <div className="space-y-4 pt-4 border-t border-slate-800/60">
-                              {selectedDecisionOptions.map((optId, idx) => {
-                                const opt = DECISION_OPTIONS.find((o) => o.id === optId);
-                                if (!opt) return null;
-                                return (
-                                  <div key={optId} className="space-y-1.5 animate-welcome-zoom">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold uppercase tracking-wider">
-                                        Prioridad {idx + 1}
-                                      </span>
-                                      <p className="text-xs font-bold text-cyan-300 font-mono">
-                                        {opt.question}
-                                      </p>
-                                    </div>
-                                    <textarea
-                                      rows={2}
-                                      value={decisionJustifications[optId] || ''}
-                                      onChange={(e) => handleJustificationChange(optId, e.target.value)}
-                                      placeholder="Escribe la justificación de esta decisión..."
-                                      className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Right Column: Group Info panel */}
-                          <div className="rounded-xl border border-slate-800 bg-[#02050b]/60 p-5 space-y-4 h-fit">
-                            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 border-b border-slate-800 pb-2">
-                              Información General del Grupo
-                            </h4>
-
-                            <div className="space-y-3 font-mono text-xs">
-                              <div>
-                                <span className="text-slate-500">Criterio de asociación:</span>
-                                <p className="text-slate-200 mt-1">{currentGroup.asociarPor || 'No especificado'}</p>
-                              </div>
-
-                              <div>
-                                <span className="text-slate-500">Justificación inicial:</span>
-                                <p className="text-slate-200 mt-1 whitespace-pre-wrap leading-relaxed">
-                                  {currentGroup.justificacion || 'Sin justificación previa registrada.'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <span className="text-slate-500 block mb-2">Miembros del grupo:</span>
-                                <div className="space-y-1.5 pl-2 border-l border-cyan-500/20">
-                                  {(currentGroup.caseIds || []).map((caseId) => {
-                                    const c = carpetas.find(item => item.id === caseId);
-                                    if (!c) return null;
-                                    return (
-                                      <div key={caseId} className="text-slate-300 flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                                        <span>Radicado: {c.nombre.replace("Caso ", "")}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
-                          <button
-                            type="button"
-                            onClick={() => setIsDecisionFlowModalOpen(false)}
-                            className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNextDecisionGroup}
-                            className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg font-mono"
-                          >
-                            {activeDecisionGroupIndex < pendingDecisionGroups.length - 1 ? 'Siguiente Grupo' : 'Aceptar'}
-                          </button>
-                        </div>
-                      </>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
-          )}
-
-          {isJustifyModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4 py-8 backdrop-blur-sm animate-welcome-zoom">
-              <div className="w-full max-w-md rounded-2xl border border-cyan-500/20 bg-slate-900 p-6 shadow-2xl">
-                <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider mb-1">
-                  Justificar Asociación Múltiple
-                </h3>
-                <p className="text-xs text-slate-400 mb-6 font-mono">
-                  Se creará una relación en cadena para los casos seleccionados.
-                </p>
-
-                <div className="space-y-4">
-                  {/* Target Group (Only shown in 'add' mode) */}
-                  {justifyMode === 'add' && targetGroupForAdd && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                        Grupo de destino:
-                      </label>
-                      <div className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-300 font-mono capitalize">
-                        {targetGroupForAdd.name}
-                      </div>
-                    </div>
+                      );
+                    })
                   )}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                      Asociar por:
-                    </label>
-                    <select
-                      value={asociarPor}
-                      onChange={(e) => setAsociarPor(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
-                    >
-                      <option value="Modalidad">Modalidad</option>
-                      <option value="Modus operandi">Modus operandi</option>
-                      <option value="Patrón">Patrón</option>
-                      <option value="Criterio de Conexidad">Criterio de Conexidad</option>
-                      <option value="Fenómeno criminal">Fenómeno criminal</option>
-                      <option value="Otros">Otros</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                      Justificación:
-                    </label>
-                    <textarea
-                      value={justificacionText}
-                      onChange={(e) => setJustificacionText(e.target.value)}
-                      placeholder="Escribe los detalles de la asociación..."
-                      rows={4}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                    />
-                  </div>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6">
+                <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-slate-800">
                   <button
                     type="button"
-                    onClick={() => setIsJustifyModalOpen(false)}
-                    className="rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition shadow-md font-mono"
+                    onClick={() => setIsTerminarModalOpen(false)}
+                    className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
                   >
-                    Cancelar
+                    Volver
                   </button>
                   <button
                     type="button"
-                    onClick={handleConfirmGroupJustification}
-                    className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-5 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg shadow-cyan-950/20 font-mono"
+                    onClick={() => setTerminarStep(2)}
+                    className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition font-mono"
                   >
-                    Confirmar
+                    Siguiente
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center p-6 space-y-6">
+                <div className="h-16 w-16 bg-amber-500/10 border border-amber-400/30 rounded-full flex items-center justify-center text-amber-400 text-3xl mx-auto">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="font-mono text-lg font-bold text-slate-100 uppercase tracking-widest">
+                    ¿Estás seguro de terminar la investigación?
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-2 font-mono max-w-md mx-auto leading-relaxed">
+                    Al confirmar, el temporizador se detendrá, el tablero de nodos y la capacidad de crear grupos quedarán desactivados permanentemente, y se descargará tu reporte general en PDF.
+                  </p>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setTerminarStep(1)}
+                    className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsTerminarModalOpen(false);
+                      setInvestigationFinished(true);
+                      await generateFinalReportPdf();
+                    }}
+                    className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-2.5 text-xs font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                  >
+                    Aceptar y Terminar
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {isTerminarModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[85vh]">
-
-                {terminarStep === 1 ? (
-                  <>
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                      <div>
-                        <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
-                          Casos Aislados Detectados
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1 font-mono">
-                          (Opcional) Justifica por qué consideras que estos radicados no guardan relación con otros grupos.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsTerminarModalOpen(false)}
-                        className="rounded-lg p-1 hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                      >
-                        <FiX size={18} />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                      {isolatedCases.length === 0 ? (
-                        <p className="text-sm text-slate-500 font-mono py-8 text-center">
-                          No hay casos aislados. Todos los radicados han sido asociados a algún grupo.
-                        </p>
-                      ) : (
-                        isolatedCases.map((c) => {
-                          const radicadoName = c.nombre.replace("Caso ", "");
-                          return (
-                            <div key={c.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2">
-                              <p className="text-xs font-bold text-slate-300 font-mono">
-                                Radicado: {radicadoName} • Delito: {c.tipo_delito || 'No especificado'}
-                              </p>
-                              <textarea
-                                rows={2}
-                                value={isolatedJustifications[c.id] || ''}
-                                onChange={(e) => setIsolatedJustifications({
-                                  ...isolatedJustifications,
-                                  [c.id]: e.target.value
-                                })}
-                                placeholder="Escribe la justificación de aislamiento (opcional)..."
-                                className="w-full rounded-lg border border-slate-850 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => setIsTerminarModalOpen(false)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-5 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                      >
-                        Volver
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTerminarStep(2)}
-                        className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition font-mono"
-                      >
-                        Siguiente
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center p-6 space-y-6">
-                    <div className="h-16 w-16 bg-amber-500/10 border border-amber-400/30 rounded-full flex items-center justify-center text-amber-400 text-3xl mx-auto">
-                      ⚠
-                    </div>
-                    <div>
-                      <h3 className="font-mono text-lg font-bold text-slate-100 uppercase tracking-widest">
-                        ¿Estás seguro de terminar la investigación?
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-2 font-mono max-w-md mx-auto leading-relaxed">
-                        Al confirmar, el temporizador se detendrá, el tablero de nodos y la capacidad de crear grupos quedarán desactivados permanentemente, y se descargará tu reporte general en PDF.
-                      </p>
-                    </div>
-
-                    <div className="flex justify-center gap-4 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setTerminarStep(1)}
-                        className="rounded-lg border border-slate-700 bg-slate-800/40 hover:bg-slate-700 px-6 py-2.5 text-xs font-bold text-slate-300 transition font-mono"
-                      >
-                        Atrás
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setIsTerminarModalOpen(false);
-                          setInvestigationFinished(true);
-                          await generateFinalReportPdf();
-                        }}
-                        className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 px-8 py-2.5 text-xs font-bold text-emerald-200 transition font-mono shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                      >
-                        Aceptar y Terminar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
+        </div>
+      )}
 
       {isFeedbackModalOpen && validationResult && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-sm">
@@ -3576,14 +3227,16 @@ function DashboardInvestigator({ token }) {
               </div>
             </div>
           )}
-        </>
-      )}
 
       {/* Tutorial Overlay */}
-      {(tutorialStep === 1 || tutorialStep === 2 || tutorialStep === 10) && (
-        <div className={`fixed inset-0 z-[9999] flex flex-col items-center p-4 transition-all ${tutorialStep === 1 ? 'justify-start pt-10 md:pt-16' : 'justify-center'}`}>
+      {(tutorialStep === 1 || tutorialStep === 2 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12 || tutorialStep === 13) && (
+        <div className={`fixed inset-0 z-[25000] flex flex-col items-center p-4 transition-all ${
+          tutorialStep === 1 ? 'justify-start pt-10 md:pt-16' : 'justify-center'
+        }`}>
           {/* Dark vignette background overlay */}
-          <div className={`absolute inset-0 transition-all ${tutorialStep === 1 ? 'bg-slate-950/45 backdrop-blur-none' : 'bg-slate-950/80 backdrop-blur-sm'}`} />
+          <div className={`absolute inset-0 transition-all ${
+            (tutorialStep === 1 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/80 backdrop-blur-sm'
+          }`} />
 
           {tutorialStep === 1 && (
             <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom">
@@ -3659,32 +3312,119 @@ function DashboardInvestigator({ token }) {
           )}
 
           {tutorialStep === 10 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(16,185,129,0.3)] animate-welcome-zoom z-[25000] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-emerald-500/10 border border-emerald-400/30 rounded-full flex items-center justify-center text-emerald-400 text-xl mx-auto animate-pulse">
+                🏁
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-emerald-300 uppercase tracking-wider">
+                  Finalizar Investigación
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 10 de 13
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Cuando hayas revisado todos los radicados y creado los grupos del despacho, utiliza el botón <strong className="text-emerald-300">Finalizar Investigación</strong>. Este abrirá el flujo de cierre donde podrás registrar los casos aislados y generar el reporte PDF con toda tu actividad.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(11)}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 11 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(16,185,129,0.3)] animate-welcome-zoom z-[25000] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-emerald-500/10 border border-emerald-400/30 rounded-full flex items-center justify-center text-emerald-400 text-xl mx-auto animate-pulse">
+                📋
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-emerald-300 uppercase tracking-wider">
+                  Casos Aislados
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 11 de 13
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Al finalizar, el sistema te pedirá que justifiques los radicados que no asociaste a ningún grupo. Esto es parte del reporte y documenta tu criterio como fiscal.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep(12)}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 12 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(16,185,129,0.3)] animate-welcome-zoom z-[25000] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-emerald-500/10 border border-emerald-400/30 rounded-full flex items-center justify-center text-emerald-400 text-xl mx-auto animate-pulse">
+                📄
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-emerald-300 uppercase tracking-wider">
+                  Reporte PDF Final
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 12 de 13
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Una vez confirmada la finalización, el sistema generará automáticamente un <strong className="text-emerald-300">reporte PDF</strong> con toda tu actividad: grupos formados, radicados asociados, casos aislados y eventos del despacho.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSection('lobby');
+                    setTutorialStep(13);
+                  }}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 13 && (
             <>
               {/* Spotlight Clone Button right */}
               <div className="hidden md:block md:absolute md:bottom-8 md:right-8 z-[10000] scale-105 pointer-events-none">
-                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-cyan-400 bg-slate-950 text-center space-y-2 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)]">
-                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-                    <FiZap size={20} />
+                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-emerald-400 bg-slate-950 text-center space-y-2 ring-4 ring-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.6)]">
+                  <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <FiCheckCircle size={20} />
                   </div>
-                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Toma de decisiones</span>
-                  <span className="text-xs text-slate-400">Patrones y conexiones</span>
+                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-emerald-200">Finalizar Investigación</span>
+                  <span className="text-xs text-slate-400">Generar reporte PDF</span>
                 </div>
               </div>
 
               {/* Spotlight Pointer / Card right */}
-              <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:right-8 z-[10000]">
-                <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-pulse">
-                  ⚡
+              <div className="relative w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(16,185,129,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:right-8 z-[10000]">
+                <div className="h-14 w-14 bg-emerald-500/10 border border-emerald-400/30 rounded-full flex items-center justify-center text-emerald-400 text-2xl mx-auto animate-pulse">
+                  🏁
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
-                    Toma de Decisiones
+                  <h3 className="font-mono text-lg font-bold text-emerald-300 uppercase tracking-widest">
+                    Finalizar Investigación
                   </h3>
                   <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                    Paso 10 de 10
+                    Paso 13 de 13
                   </p>
                   <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
-                    Finalmente, aquí está el módulo de **Toma de decisiones**. Al ingresar podrás conectar los nexos entre grupos delictivos, sustentar tu hipótesis y finalizar formalmente la simulación.
+                    Aquí está el botón de <strong className="text-emerald-300">Finalizar Investigación</strong>. Al hacer clic, se abrirá el proceso de cierre: justificarás los casos aislados, confirmarás el fin de la simulación y se descargará el <strong className="text-emerald-300">reporte PDF</strong> con toda tu actividad fiscal.
                   </p>
                 </div>
                 <div className="flex justify-center pt-2">
@@ -3696,7 +3436,7 @@ function DashboardInvestigator({ token }) {
                     }}
                     className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                   >
-                    Finalizar Paseo 🏁
+                    ¡Entendido, comenzar! 🚀
                   </button>
                 </div>
               </div>
@@ -3707,7 +3447,6 @@ function DashboardInvestigator({ token }) {
 
       {activeEvent && (
         <div className="fixed inset-0 flex items-center justify-center px-4 py-8" style={{ zIndex: 999999 }}>
-          {console.log("[REACT RENDER] Rendering activeEvent modal in DOM:", activeEvent)}
           {/* Pulsating Background */}
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-[pulse_2s_infinite] shadow-[inset_0_0_100px_rgba(239,68,68,0.35)]" />
           

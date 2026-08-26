@@ -73,7 +73,7 @@ function CasesSidebarModule({
 
   // Mock group for tutorial visual demonstration
   const displayGroups = useMemo(() => {
-    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) {
+    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) {
       if (carpetas.length >= 2) {
         const mockGroup = {
           id: 'mock-tutorial-group',
@@ -93,7 +93,7 @@ function CasesSidebarModule({
 
   // Auto expand tutorial mock group
   useEffect(() => {
-    if (tutorialStep === 8 || tutorialStep === 9) {
+    if (tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) {
       setExpandedGroupIds(prev => {
         if (prev.includes('mock-tutorial-group')) return prev;
         return [...prev, 'mock-tutorial-group'];
@@ -691,8 +691,8 @@ function CasesSidebarModule({
                         </div>
                       )}
 
-                      {/* Decision Button per Group – always visible unless it is the mock tutorial group */}
-                      {!isEditing && onStartDecisionForGroup && group.id !== 'mock-tutorial-group' && (
+                      {/* Decision Button per Group – always visible unless it is the mock tutorial group (render in tutorial step 10+) */}
+                      {!isEditing && onStartDecisionForGroup && (group.id !== 'mock-tutorial-group' || tutorialStep >= 10) && (
                         (() => {
                           const hasDecisions = group.decisions && group.decisions.length > 0;
                           return (
@@ -703,9 +703,11 @@ function CasesSidebarModule({
                                 onStartDecisionForGroup(group);
                               }}
                               className={`mt-2 w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[10px] font-bold font-mono uppercase tracking-wider transition-all border ${
-                                hasDecisions
-                                  ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40'
-                                  : 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-400/60'
+                                tutorialStep === 10
+                                  ? 'ring-4 ring-cyan-400 border-cyan-400 bg-cyan-950 animate-pulse relative z-[20005] shadow-[0_0_20px_rgba(6,182,212,0.6)] text-cyan-200'
+                                  : hasDecisions
+                                    ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40'
+                                    : 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-400/60'
                               }`}
                             >
                               <span>{hasDecisions ? '✓ Decisiones tomadas' : '¿Qué decisiones vas a tomar ahora?'}</span>
@@ -891,11 +893,11 @@ function CasesSidebarModule({
       )}
 
       {/* Interactive Tutorial Overlays inside CasesSidebarModule */}
-      {tutorialStep >= 3 && tutorialStep <= 9 && (
+      {tutorialStep >= 3 && tutorialStep <= 12 && (
         <div className="fixed inset-0 z-[20000] flex flex-col items-center justify-center p-4">
           {/* Backdrop with no blur to keep screen clean */}
           <div className={`absolute inset-0 transition-all ${
-            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 5 || tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
+            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 5 || tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
           }`} />
 
           {/* Tutorial Step Cards */}
@@ -1097,7 +1099,7 @@ function CasesSidebarModule({
           )}
 
           {tutorialStep === 9 && (
-            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-[380px]">
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[25000] md:absolute md:top-32 md:right-[380px]">
               <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
                 ✏️
               </div>
@@ -1106,7 +1108,7 @@ function CasesSidebarModule({
                   Editar Nombre y Remover Casos
                 </h3>
                 <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                  Paso 9 de 10
+                  Paso 9 de 13
                 </p>
                 <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
                   Haciendo clic en el lápiz al lado del grupo en la barra lateral podrás **renombrarlo** libremente. Si deseas retirar un caso de un grupo, solo despliégalo y presiona el botón **(X)** para sacarlo del grupo.
@@ -1115,10 +1117,7 @@ function CasesSidebarModule({
               <div className="flex justify-center pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    onSwitchToLobby();
-                    setTutorialStep(10);
-                  }}
+                  onClick={() => setTutorialStep(10)}
                   className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
                 >
                   Siguiente →
@@ -1126,6 +1125,8 @@ function CasesSidebarModule({
               </div>
             </div>
           )}
+
+          {/* Steps 10, 11, and 12 relocated to global DashboardInvestigator root */}
         </div>
       )}
     </div>
