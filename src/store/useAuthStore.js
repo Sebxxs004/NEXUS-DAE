@@ -97,6 +97,24 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  guardarEventos: async (eventosIds) => {
+    const { token, usuario } = get();
+    if (!token || !usuario) return;
+    try {
+      const payload = JSON.stringify(eventosIds);
+      await axios.post(`${API_URL}/auth/save-events`, {
+        shown_event_ids: payload
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const nuevoUsuario = { ...usuario, shown_event_ids: payload };
+      set({ usuario: nuevoUsuario });
+      localStorage.setItem('usuario', JSON.stringify(nuevoUsuario));
+    } catch (e) {
+      console.error('Error guardando eventos mostrados:', e);
+    }
+  },
+
   obtenerPerfil: async () => {
     const { token } = get();
     if (!token) return;

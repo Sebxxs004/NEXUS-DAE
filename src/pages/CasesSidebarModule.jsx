@@ -42,7 +42,6 @@ function CasesSidebarModule({
   tutorialStep,
   setTutorialStep,
   onStartDecisionForGroup,
-  groupJustifications,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDelito, setSelectedDelito] = useState('Todos');
@@ -73,7 +72,7 @@ function CasesSidebarModule({
 
   // Mock group for tutorial visual demonstration
   const displayGroups = useMemo(() => {
-    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) {
+    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) {
       if (carpetas.length >= 2) {
         const mockGroup = {
           id: 'mock-tutorial-group',
@@ -93,7 +92,7 @@ function CasesSidebarModule({
 
   // Auto expand tutorial mock group
   useEffect(() => {
-    if (tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) {
+    if (tutorialStep === 8 || tutorialStep === 9) {
       setExpandedGroupIds(prev => {
         if (prev.includes('mock-tutorial-group')) return prev;
         return [...prev, 'mock-tutorial-group'];
@@ -635,21 +634,21 @@ function CasesSidebarModule({
                             
                             {/* Pencil Edit Icon */}
                             <button
-                               type="button"
-                               onClick={(e) => {
-                                   e.stopPropagation();
-                                   if (investigationFinished) return;
-                                   setEditingGroupId(group.id);
-                                   setEditGroupName(group.name);
-                               }}
-                               disabled={investigationFinished}
-                               title="Editar nombre"
-                               className="opacity-70 hover:opacity-100 p-0.5 hover:bg-slate-800 text-slate-400 hover:text-cyan-400 rounded transition ml-1.5 shrink-0"
-                             >
-                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                               </svg>
-                             </button>
+                              type="button"
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (investigationFinished) return;
+                                  setEditingGroupId(group.id);
+                                  setEditGroupName(group.name);
+                              }}
+                              disabled={investigationFinished}
+                              title="Editar nombre"
+                              className="opacity-0 group-hover/folder:opacity-100 p-0.5 hover:bg-slate-800 hover:text-cyan-400 rounded transition ml-1 shrink-0"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
                           </div>
                           <span className="text-[10px] text-slate-500 shrink-0 font-mono">
                             {isExpanded ? '▼' : '▶'} ({group.caseIds.length})
@@ -680,7 +679,7 @@ function CasesSidebarModule({
                                       handleRemoveFromGroup(group.id, caseId);
                                     }}
                                     title="Eliminar del grupo"
-                                    className="opacity-70 hover:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition shrink-0"
+                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition"
                                   >
                                     <FiX size={12} />
                                   </button>
@@ -893,11 +892,11 @@ function CasesSidebarModule({
       )}
 
       {/* Interactive Tutorial Overlays inside CasesSidebarModule */}
-      {tutorialStep >= 3 && tutorialStep <= 12 && (
+      {tutorialStep >= 3 && tutorialStep <= 9 && (
         <div className="fixed inset-0 z-[20000] flex flex-col items-center justify-center p-4">
           {/* Backdrop with no blur to keep screen clean */}
           <div className={`absolute inset-0 transition-all ${
-            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 5 || tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 10 || tutorialStep === 11 || tutorialStep === 12) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
+            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
           }`} />
 
           {/* Tutorial Step Cards */}
@@ -1099,7 +1098,7 @@ function CasesSidebarModule({
           )}
 
           {tutorialStep === 9 && (
-            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[25000] md:absolute md:top-32 md:right-[380px]">
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[10001] md:absolute md:top-32 md:right-[380px]">
               <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
                 ✏️
               </div>
@@ -1108,7 +1107,7 @@ function CasesSidebarModule({
                   Editar Nombre y Remover Casos
                 </h3>
                 <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                  Paso 9 de 13
+                  Paso 9 de 10
                 </p>
                 <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
                   Haciendo clic en el lápiz al lado del grupo en la barra lateral podrás **renombrarlo** libremente. Si deseas retirar un caso de un grupo, solo despliégalo y presiona el botón **(X)** para sacarlo del grupo.
@@ -1117,7 +1116,10 @@ function CasesSidebarModule({
               <div className="flex justify-center pt-2">
                 <button
                   type="button"
-                  onClick={() => setTutorialStep(10)}
+                  onClick={() => {
+                    onSwitchToLobby();
+                    setTutorialStep(10);
+                  }}
                   className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
                 >
                   Siguiente →
@@ -1125,8 +1127,6 @@ function CasesSidebarModule({
               </div>
             </div>
           )}
-
-          {/* Steps 10, 11, and 12 relocated to global DashboardInvestigator root */}
         </div>
       )}
     </div>

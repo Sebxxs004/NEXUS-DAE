@@ -43,7 +43,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, u.created_groups, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
+      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, u.created_groups, u.shown_event_ids, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
       [email]
     );
 
@@ -83,6 +83,7 @@ router.post('/login', async (req, res) => {
         primera_vez: usuario.primera_vez,
         elapsed_seconds: usuario.elapsed_seconds,
         created_groups: usuario.created_groups,
+        shown_event_ids: usuario.shown_event_ids,
       },
     });
   } catch (error) {
@@ -129,6 +130,20 @@ router.post('/save-groups', authenticate, async (req, res) => {
   }
 });
 
+router.post('/save-events', authenticate, async (req, res) => {
+  try {
+    const { shown_event_ids } = req.body;
+    if (shown_event_ids === undefined) {
+      return res.status(400).json({ error: 'shown_event_ids requerido' });
+    }
+    await pool.query('UPDATE usuarios SET shown_event_ids = $1 WHERE id = $2', [shown_event_ids, req.user.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
 // Registrar usuario (solo admin)
 router.post('/register', async (req, res) => {
   try {
@@ -161,7 +176,7 @@ router.post('/register', async (req, res) => {
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.primera_vez, u.elapsed_seconds, u.created_groups, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = $1',
+      'SELECT u.id, u.nombre, u.email, u.primera_vez, u.elapsed_seconds, u.created_groups, u.shown_event_ids, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = $1',
       [req.user.id]
     );
     if (result.rows.length === 0) {
