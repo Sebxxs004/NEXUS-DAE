@@ -1686,7 +1686,8 @@ function DashboardInvestigator({ token }) {
       setSelectedDecisionOptions([]);
       setDecisionJustifications({});
     } else {
-      setDecisionFlowCompleted(true);
+      setIsDecisionFlowModalOpen(false);
+      alert('Decisiones guardadas correctamente para el grupo.');
     }
   };
 
