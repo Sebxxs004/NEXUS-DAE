@@ -72,7 +72,7 @@ function CasesSidebarModule({
 
   // Mock group for tutorial visual demonstration
   const displayGroups = useMemo(() => {
-    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9) {
+    if (tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 9.1 || tutorialStep === 9.2 || tutorialStep === 9.3) {
       if (carpetas.length >= 2) {
         const mockGroup = {
           id: 'mock-tutorial-group',
@@ -92,7 +92,7 @@ function CasesSidebarModule({
 
   // Auto expand tutorial mock group
   useEffect(() => {
-    if (tutorialStep === 8 || tutorialStep === 9) {
+    if (tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 9.1 || tutorialStep === 9.2 || tutorialStep === 9.3) {
       setExpandedGroupIds(prev => {
         if (prev.includes('mock-tutorial-group')) return prev;
         return [...prev, 'mock-tutorial-group'];
@@ -370,7 +370,7 @@ function CasesSidebarModule({
       </header>
 
       {/* Main Container */}
-      <main className="p-6 flex-1 flex flex-col space-y-6 max-w-7xl mx-auto w-full">
+      <main className="p-6 flex-1 flex flex-col space-y-6 max-w-full mx-auto w-full">
         {/* Timer Bar */}
         <div className="flex flex-wrap items-center justify-between rounded-xl border border-slate-600/30 bg-slate-950/60 px-6 py-3.5 backdrop-blur-sm shadow-xl gap-4">
           <p className="text-xs text-slate-400 font-mono uppercase tracking-wider">
@@ -455,9 +455,9 @@ function CasesSidebarModule({
         )}
 
         {/* Main Grid: Cards + Sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
           {/* Left Column: Cards Grid */}
-          <div className={`lg:col-span-3 ${
+          <div className={`xl:col-span-1 ${
             (tutorialStep === 3 || tutorialStep === 4) ? 'relative z-[10000] border-2 border-cyan-400 rounded-xl p-2 shadow-[0_0_25px_rgba(6,182,212,0.4)] scale-[1.01] transition-all bg-[#090d16]' : ''
           }`}>
             {loadingCases ? (
@@ -471,7 +471,7 @@ function CasesSidebarModule({
                 <p className="font-mono text-sm text-slate-400">No se encontraron expedientes con los criterios seleccionados.</p>
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredCarpetas.map((caseItem) => {
                   const metadata = caseMetadataById.get(caseItem.id);
                   const delito = metadata?.offenseType || caseItem.tipo_delito || 'No especificado';
@@ -563,7 +563,7 @@ function CasesSidebarModule({
           </div>
 
           {/* Right Column: Folder Tree Sidebar */}
-          <aside className={`lg:col-span-1 bg-slate-950/60 p-5 rounded-xl border border-cyan-500/20 backdrop-blur-sm shadow-xl flex flex-col space-y-4 h-fit max-h-[75vh] overflow-y-auto ${
+          <aside className={`xl:col-span-1 bg-slate-950/60 p-5 rounded-xl border border-cyan-500/20 backdrop-blur-sm shadow-xl flex flex-col space-y-4 h-fit max-h-[75vh] overflow-y-auto ${
             (tutorialStep === 8 || tutorialStep === 9) ? 'relative z-[10000] border-cyan-400 ring-4 ring-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-[1.02]' : ''
           }`}>
             <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-cyan-300 border-b border-slate-800 pb-2.5 flex items-center justify-between">
@@ -643,7 +643,7 @@ function CasesSidebarModule({
                               }}
                               disabled={investigationFinished}
                               title="Editar nombre"
-                              className="opacity-0 group-hover/folder:opacity-100 p-0.5 hover:bg-slate-800 hover:text-cyan-400 rounded transition ml-1 shrink-0"
+                              className={`p-0.5 hover:bg-slate-800 hover:text-cyan-400 rounded transition ml-1 shrink-0 ${tutorialStep === 9 ? 'opacity-100' : 'opacity-0 group-hover/folder:opacity-100'}`}
                             >
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -679,7 +679,7 @@ function CasesSidebarModule({
                                       handleRemoveFromGroup(group.id, caseId);
                                     }}
                                     title="Eliminar del grupo"
-                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition"
+                                    className={`p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition ${tutorialStep === 9 ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'}`}
                                   >
                                     <FiX size={12} />
                                   </button>
@@ -691,26 +691,29 @@ function CasesSidebarModule({
                       )}
 
                       {/* Decision Button per Group – always visible unless it is the mock tutorial group (render in tutorial step 10+) */}
-                      {!isEditing && onStartDecisionForGroup && (group.id !== 'mock-tutorial-group' || tutorialStep >= 10) && (
+                      {!isEditing && onStartDecisionForGroup && (group.id !== 'mock-tutorial-group' || tutorialStep >= 9.1) && (
                         (() => {
                           const hasDecisions = group.decisions && group.decisions.length > 0;
                           return (
                             <button
                               type="button"
+                              disabled={hasDecisions}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onStartDecisionForGroup(group);
+                                if (!hasDecisions) {
+                                  onStartDecisionForGroup(group);
+                                }
                               }}
                               className={`mt-2 w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[10px] font-bold font-mono uppercase tracking-wider transition-all border ${
-                                tutorialStep === 10
+                                tutorialStep === 9.1
                                   ? 'ring-4 ring-cyan-400 border-cyan-400 bg-cyan-950 animate-pulse relative z-[20005] shadow-[0_0_20px_rgba(6,182,212,0.6)] text-cyan-200'
                                   : hasDecisions
-                                    ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40'
+                                    ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400/60 cursor-not-allowed'
                                     : 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-400/60'
                               }`}
                             >
                               <span>{hasDecisions ? '✓ Decisiones tomadas' : '¿Qué decisiones vas a tomar ahora?'}</span>
-                              <span className={`text-[10px] ${hasDecisions ? 'text-emerald-400' : 'text-cyan-400'}`}>➔</span>
+                              <span className={`text-[10px] ${hasDecisions ? 'text-emerald-500/40' : 'text-cyan-400'}`}>{hasDecisions ? '✓' : '➔'}</span>
                             </button>
                           );
                         })()
@@ -892,11 +895,11 @@ function CasesSidebarModule({
       )}
 
       {/* Interactive Tutorial Overlays inside CasesSidebarModule */}
-      {tutorialStep >= 3 && tutorialStep <= 9 && (
+      {((tutorialStep >= 3 && tutorialStep <= 9) || tutorialStep === 9.1 || tutorialStep === 9.2 || tutorialStep === 9.3) && (
         <div className="fixed inset-0 z-[20000] flex flex-col items-center justify-center p-4">
           {/* Backdrop with no blur to keep screen clean */}
           <div className={`absolute inset-0 transition-all ${
-            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 8 || tutorialStep === 9) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
+            (tutorialStep === 3 || tutorialStep === 4 || tutorialStep === 5 || tutorialStep === 7 || tutorialStep === 8 || tutorialStep === 9 || tutorialStep === 9.1 || tutorialStep === 9.2 || tutorialStep === 9.3) ? 'bg-slate-950/15 backdrop-blur-none' : 'bg-slate-950/60 backdrop-blur-none'
           }`} />
 
           {/* Tutorial Step Cards */}
@@ -1107,7 +1110,7 @@ function CasesSidebarModule({
                   Editar Nombre y Remover Casos
                 </h3>
                 <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                  Paso 9 de 10
+                  Paso 9 de 12
                 </p>
                 <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
                   Haciendo clic en el lápiz al lado del grupo en la barra lateral podrás **renombrarlo** libremente. Si deseas retirar un caso de un grupo, solo despliégalo y presiona el botón **(X)** para sacarlo del grupo.
@@ -1117,12 +1120,106 @@ function CasesSidebarModule({
                 <button
                   type="button"
                   onClick={() => {
+                    setTutorialStep(9.1);
+                  }}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 9.1 && (
+            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[20006] md:absolute md:top-32 md:right-[380px]">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ⚡
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Toma de Decisiones por Grupo
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 9.1 de 12
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Al final de la carpeta de cada grupo en la barra lateral (resaltado abajo), verás el botón **¿Qué decisiones vas a tomar ahora?**. Púlsalo para abrir el panel de decisiones sobre ese conjunto de casos.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Open the mock decision modal for demo
+                    const demoGroup = displayGroups[0] || { id: 'demo', name: 'Grupo Criminal 1', caseIds: [] };
+                    onStartDecisionForGroup(demoGroup);
+                    setTutorialStep(9.2);
+                  }}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Ver panel de decisiones →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 9.2 && (
+            <div className="relative w-full max-w-sm rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[200000] md:absolute md:top-24 md:right-8 lg:md:right-16">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ☑️
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Opciones y Checkboxes
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 9.2 de 12
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  En la columna izquierda del modal, selecciona las **acciones o decisiones fiscales** (checkboxes) que consideres necesarias ordenar sobre este grupo. Puedes marcar una o más opciones.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTutorialStep(9.3);
+                  }}
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tutorialStep === 9.3 && (
+            <div className="relative w-full max-w-sm rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_45px_rgba(6,182,212,0.3)] animate-welcome-zoom z-[200000] md:absolute md:bottom-24 md:right-8 lg:md:right-16">
+              <div className="h-12 w-12 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-xl mx-auto animate-pulse">
+                ✍️
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-mono text-base font-bold text-cyan-300 uppercase tracking-wider">
+                  Justificación de Decisiones
+                </h3>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
+                  Paso 9.3 de 12
+                </p>
+                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
+                  Por cada opción que selecciones se desplegará una pregunta. En el campo de texto deberás **justificar legal o investigativamente** la decisión específica. Al terminar de guardar, volvamos a la pantalla inicial.
+                </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Force-close the decision modal in parent state if active
                     onSwitchToLobby();
                     setTutorialStep(10);
                   }}
                   className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 text-xs font-bold text-white transition font-mono shadow-md"
                 >
-                  Siguiente →
+                  Regresar a la pantalla inicial →
                 </button>
               </div>
             </div>

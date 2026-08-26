@@ -1388,6 +1388,13 @@ function DashboardInvestigator({ token }) {
       loadEvents();
     }
   }, [token, authHeaders]);
+  
+  // Close decision flow modal if tutorial returns to lobby or goes to final steps
+  useEffect(() => {
+    if (tutorialStep === 10 || tutorialStep === 0) {
+      setIsDecisionFlowModalOpen(false);
+    }
+  }, [tutorialStep]);
 
   // Triggering check
   useEffect(() => {
@@ -2689,215 +2696,7 @@ function DashboardInvestigator({ token }) {
         />
       )}
 
-      {activeSection === 'tablero' && (
-        <>
-          <div className="h-screen bg-investigation-bg text-slate-100">
-            <header className="border-b border-cyan-500/20 bg-panel-dark px-6 py-4 backdrop-blur-md">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Modo fiscal</p>
-                  <h1 className="mt-1 font-mono text-xl font-semibold tracking-[0.18em] text-slate-100">Tablero de casos</h1>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  {/* Alarming Timer Badge */}
-                  <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-800 via-red-600 to-rose-700 px-6 py-2.5 font-mono text-sm md:text-base font-black tracking-widest text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] border-2 border-red-400/80 animate-pulse scale-105">
-                    <FiAlertTriangle className="text-white animate-bounce shrink-0" size={18} />
-                    <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
-                      TIEMPO LÍMITE: {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSection('lobby')}
-                    className="rounded-lg border border-cyan-500/30 bg-cyan-950/60 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-900/50 hover:text-white"
-                  >
-                    ← Volver
-                  </button>
-                </div>
-              </div>
-            </header>
-            <main className="h-[calc(100vh-88px)] overflow-hidden p-4">
 
-              {error && (
-                <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
-                  {error}
-                </div>
-              )}
-
-              <div className="grid h-[calc(100%-56px)] grid-cols-1 gap-4 xl:grid-cols-[1fr_340px] relative">
-                <div
-                  ref={boardRef}
-                  onMouseDown={handleBoardMouseDown}
-                  onMouseMove={handleBoardMouseMove}
-                  onMouseUp={handleBoardMouseUp}
-                  onMouseLeave={handleBoardMouseUp}
-                  onWheel={handleBoardWheel}
-                  className="relative h-full overflow-hidden rounded-xl border border-cyan-500/20 bg-slate-950/60 cursor-grab active:cursor-grabbing select-none"
-                >
-                  {/* Zoom/Pan Floating Controls */}
-                  <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 rounded-lg bg-slate-950/80 p-1.5 border border-slate-800 backdrop-blur-md" onMouseDown={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => setBoardZoom(prev => Math.min(prev + 0.15, 2.0))}
-                      title="Acercar"
-                      className="p-2 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition"
-                    >
-                      <FiPlus size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBoardZoom(prev => Math.max(prev - 0.15, 0.3))}
-                      title="Alejar"
-                      className="p-2 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition"
-                    >
-                      <FiMinus size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setBoardZoom(0.85); setBoardPan({ x: 10, y: 10 }); }}
-                      title="Restablecer"
-                      className="p-1.5 px-3 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 transition font-mono text-[11px] font-bold"
-                    >
-                      Reset
-                    </button>
-                    <span className="px-2 font-mono text-[11px] text-slate-400">{Math.round(boardZoom * 100)}%</span>
-                  </div>
-
-                  {/* Inner Zoom/Pan Canvas */}
-                  <div
-                    className="absolute inset-0 origin-top-left transition-transform duration-75"
-                    style={{
-                      transform: `translate(${boardPan.x}px, ${boardPan.y}px) scale(${boardZoom})`,
-                      width: '2800px',
-                      height: '2200px',
-                    }}
-                  >
-                    <svg className="pointer-events-none absolute inset-0 w-full h-full" style={{ width: '2800px', height: '2200px' }}>
-                      {groupedRegions.map((region) => (
-                        <g key={region.key}>
-                          <rect
-                            x={region.x}
-                            y={region.y}
-                            width={region.width}
-                            height={region.height}
-                            rx="28"
-                            ry="28"
-                            fill={hexToRgba(region.color, 0.06)}
-                            stroke={hexToRgba(region.color, 0.45)}
-                            strokeDasharray="8 6"
-                            strokeWidth="1.5"
-                          />
-                          <text
-                            x={region.x + 12}
-                            y={region.y - 10}
-                            fill={region.color}
-                            fontSize="13"
-                            fontWeight="700"
-                            letterSpacing="0.14em"
-                          >
-                            {region.name.toUpperCase()}
-                          </text>
-                        </g>
-                      ))}
-
-                      {activeConnections.map((edge) => {
-                        const source = activeNodeById.get(edge.a);
-                        const target = activeNodeById.get(edge.b);
-                        if (!source || !target) {
-                          return null;
-                        }
-                        const pairKey = getPairKey(edge.a, edge.b);
-                        const isConexado = !!disagreementReasons[pairKey] && disagreementReasons[pairKey].trim() !== '';
-                        return (
-                          <line
-                            key={pairKey}
-                            x1={source.x}
-                            y1={source.y}
-                            x2={target.x}
-                            y2={target.y}
-                            stroke={isConexado ? "#fbbf24" : "#94a3b8"}
-                            strokeWidth={isConexado ? "3" : "2"}
-                            opacity={isConexado ? "0.9" : "0.5"}
-                            strokeDasharray={isConexado ? "none" : "5, 5"}
-                          />
-                        );
-                      })}
-                    </svg>
-
-                    {activeNodes.map((node) => (
-                      (() => {
-                        const caseItem = carpetas.find((c) => c.id === node.id);
-                        return (
-                          <button
-                            key={node.id}
-                            type="button"
-                            onClick={() => onNodeClick(node.id)}
-                            title={`${caseItem?.tipo_delito || 'Caso'} | Radicado: ${caseItem?.nombre?.replace("Caso ", "")}`}
-                            className={`absolute flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border text-center text-[10px] font-semibold leading-tight transition p-2 ${selectedNodeIds.includes(node.id)
-                                ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.5)]'
-                                : 'border-cyan-500/30 bg-slate-950/90 text-white hover:border-cyan-400 hover:brightness-110 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
-                              }`}
-                            style={{
-                              left: node.x,
-                              top: node.y,
-                            }}
-                          >
-                            <span className="font-mono text-[9px] font-bold text-cyan-300">
-                              {caseItem?.nombre?.replace("Caso ", "")}
-                            </span>
-                            <span className="text-[8px] text-slate-300 line-clamp-2 capitalize mt-0.5">
-                              {caseItem?.tipo_delito || 'Caso'}
-                            </span>
-                          </button>
-                        );
-                      })()
-                    ))}
-                  </div>
-                </div>
-
-                {/* Right Column: Tomar decisiones & Action controls */}
-                <div className="h-full flex flex-col justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={startDecisionFlow}
-                    className="flex-1 w-full rounded-xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950/60 to-slate-900/80 p-6 flex flex-col items-center justify-center text-center space-y-4 hover:border-cyan-400/80 group transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] relative overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms]" />
-                    <span className="font-mono text-base md:text-lg font-bold tracking-[0.2em] text-cyan-300 group-hover:text-cyan-200 uppercase">
-                      Tomar decisiones
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      Definir acciones para los grupos
-                    </span>
-                    <div className="text-3xl text-cyan-400 group-hover:translate-x-3 transition-transform duration-300 ease-out">
-                      ➔
-                    </div>
-                  </button>
-
-                  <div className="flex gap-2 w-full">
-                    <button
-                      type="button"
-                      onClick={restartInvestigation}
-                      disabled={Boolean(validationResult) || feedbackSubmitted || finishing}
-                      className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Reiniciar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleTerminarInvestigacionClick}
-                      disabled={Boolean(validationResult) || feedbackSubmitted || finishing || investigationFinished}
-                      className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Terminar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </main>
-          </div>
-        </>
-      )}
 
       {isDecisionFlowModalOpen && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
@@ -2971,50 +2770,63 @@ function DashboardInvestigator({ token }) {
                               </p>
                             </div>
 
-                            {/* Checkbox Options List */}
-                            <div className="space-y-3">
-                              {DECISION_OPTIONS.map((opt) => {
-                                const isChecked = selectedDecisionOptions.includes(opt.id);
-                                return (
-                                  <label key={opt.id} className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleOptionToggle(opt.id)}
-                                      className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                                    />
-                                    <span className="font-mono text-xs leading-relaxed">{opt.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
+                             {/* Checkbox Options List */}
+                             <div className={`space-y-3 ${
+                               tutorialStep === 9.2 
+                                 ? 'ring-4 ring-cyan-400 border border-cyan-400 bg-cyan-950/80 p-3 rounded-lg relative z-[200005] shadow-[0_0_20px_rgba(6,182,212,0.6)]' 
+                                 : ''
+                             }`}>
+                               {DECISION_OPTIONS.map((opt) => {
+                                 const isChecked = (tutorialStep === 9.2 || tutorialStep === 9.3) ? (opt.id === 1) : selectedDecisionOptions.includes(opt.id);
+                                 return (
+                                   <label key={opt.id} className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
+                                     <input
+                                       type="checkbox"
+                                       checked={isChecked}
+                                       disabled={tutorialStep === 9.2 || tutorialStep === 9.3}
+                                       onChange={() => handleOptionToggle(opt.id)}
+                                       className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                                     />
+                                     <span className="font-mono text-xs leading-relaxed">{opt.label}</span>
+                                   </label>
+                                 );
+                               })}
+                             </div>
 
-                            {/* Questions/Textareas rendered in the selected order */}
-                            <div className="space-y-4 pt-4 border-t border-slate-800/60">
-                              {selectedDecisionOptions.map((optId, idx) => {
-                                const opt = DECISION_OPTIONS.find((o) => o.id === optId);
-                                if (!opt) return null;
-                                return (
-                                  <div key={optId} className="space-y-1.5 animate-welcome-zoom">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold uppercase tracking-wider">
-                                        Prioridad {idx + 1}
-                                      </span>
-                                      <p className="text-xs font-bold text-cyan-300 font-mono">
-                                        {opt.question}
-                                      </p>
-                                    </div>
-                                    <textarea
-                                      rows={2}
-                                      value={decisionJustifications[optId] || ''}
-                                      onChange={(e) => handleJustificationChange(optId, e.target.value)}
-                                      placeholder="Escribe la justificación de esta decisión..."
-                                      className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
+                             {/* Questions/Textareas rendered in the selected order */}
+                             <div className="space-y-4 pt-4 border-t border-slate-800/60">
+                               {((tutorialStep === 9.2 || tutorialStep === 9.3) ? [1] : selectedDecisionOptions).map((optId, idx) => {
+                                 const opt = DECISION_OPTIONS.find((o) => o.id === optId);
+                                 if (!opt) return null;
+                                 return (
+                                   <div 
+                                     key={optId} 
+                                     className={`space-y-1.5 animate-welcome-zoom p-2.5 rounded-lg ${
+                                       tutorialStep === 9.3 
+                                         ? 'ring-4 ring-cyan-400 border border-cyan-400 bg-cyan-950/80 relative z-[200005] shadow-[0_0_20px_rgba(6,182,212,0.6)]' 
+                                         : ''
+                                     }`}
+                                   >
+                                     <div className="flex items-center gap-2">
+                                       <span className="font-mono text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold uppercase tracking-wider">
+                                         Prioridad {idx + 1}
+                                       </span>
+                                       <p className="text-xs font-bold text-cyan-300 font-mono">
+                                         {opt.question}
+                                       </p>
+                                     </div>
+                                     <textarea
+                                       rows={2}
+                                       value={(tutorialStep === 9.2 || tutorialStep === 9.3) ? 'Se ordena el esclarecimiento prioritario de la conexidad.' : (decisionJustifications[optId] || '')}
+                                       disabled={tutorialStep === 9.2 || tutorialStep === 9.3}
+                                       onChange={(e) => handleJustificationChange(optId, e.target.value)}
+                                       placeholder="Escribe la justificación de esta decisión..."
+                                       className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
+                                     />
+                                   </div>
+                                 );
+                               })}
+                             </div>
                           </div>
 
                           {/* Right Column: Group Info panel */}
@@ -3674,12 +3486,12 @@ function DashboardInvestigator({ token }) {
             <>
               {/* Spotlight Clone Button right */}
               <div className="hidden md:block md:absolute md:bottom-8 md:right-8 z-[10000] scale-105 pointer-events-none">
-                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-cyan-400 bg-slate-950 text-center space-y-2 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)]">
-                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-                    <FiZap size={20} />
+                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-emerald-400 bg-slate-950 text-center space-y-2 ring-4 ring-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.6)]">
+                  <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <FiCheckCircle size={20} />
                   </div>
-                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Toma de decisiones</span>
-                  <span className="text-xs text-slate-400">Patrones y conexiones</span>
+                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Finalizar Investigación</span>
+                  <span className="text-xs text-slate-400">Generar reporte y cerrar sesión</span>
                 </div>
               </div>
 
@@ -3690,13 +3502,13 @@ function DashboardInvestigator({ token }) {
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
-                    Toma de Decisiones
+                    Finalizar Investigación
                   </h3>
                   <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                    Paso 10 de 10
+                    Paso 12 de 12
                   </p>
                   <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
-                    Finalmente, aquí está el módulo de **Toma de decisiones**. Al ingresar podrás conectar los nexos entre grupos delictivos, sustentar tu hipótesis y finalizar formalmente la simulación.
+                    Una vez que hayas asociado todos los expedientes del despacho en sus respectivos grupos y registrado sus justificaciones, regresa al Lobby y presiona **Finalizar Investigación** para cerrar el juego y descargar tu reporte PDF general.
                   </p>
                 </div>
                 <div className="flex justify-center pt-2">
