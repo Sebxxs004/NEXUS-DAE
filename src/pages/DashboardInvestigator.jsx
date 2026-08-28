@@ -446,6 +446,18 @@ function DashboardInvestigator({ token }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [tutorialStep, setTutorialStep] = useState(0); // 0 = inactive, 1 = dashboard intro, 2 = procesos spotlight
 
+  // Team-related states
+  const [showTeamSetupModal, setShowTeamSetupModal] = useState(false);
+  const [memberCount, setMemberCount] = useState(2);
+  const [memberNames, setMemberNames] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`nexus_team_members_${usuario?.id}`);
+      return saved ? JSON.parse(saved) : ['', ''];
+    } catch {
+      return ['', ''];
+    }
+  });
+
   const [carpetas, setCarpetas] = useState([]);
   const [documentsByCase, setDocumentsByCase] = useState({});
   const [selectedCaseId, setSelectedCaseId] = useState(null);
@@ -1503,8 +1515,22 @@ function DashboardInvestigator({ token }) {
     writeLine('Dirección de Altos Estudios - Fiscalía General de la Nación', 10, [100, 116, 139], 'italic');
     y += 4;
 
-    writeLine(`Investigador: ${usuario?.nombre || 'Sin nombre'}`);
+    writeLine(`Investigador principal: ${usuario?.nombre || 'Sin nombre'}`);
     writeLine(`Email: ${usuario?.email || 'Sin email'}`);
+    
+    // Team Members listing
+    try {
+      const savedMembers = localStorage.getItem(`nexus_team_members_${usuario?.id}`);
+      if (savedMembers) {
+        const parsed = JSON.parse(savedMembers).filter(n => n.trim() !== '');
+        if (parsed.length > 0) {
+          writeLine(`Integrantes del grupo: ${parsed.join(', ')}`);
+        }
+      }
+    } catch (err) {
+      console.error('Error rendering team members in PDF:', err);
+    }
+    
     writeLine(`Fecha de generación: ${new Date().toLocaleString()}`);
     writeLine(`Tiempo transcurrido: ${formatSeconds(elapsedSeconds)}`);
     y += 5;
@@ -2559,7 +2585,7 @@ function DashboardInvestigator({ token }) {
                       completarPrimeraVez();
                       localStorage.setItem(`nexus_first_login_${usuario?.id}`, 'false');
                       setShowInstructions(false);
-                      setTutorialStep(1);
+                      setShowTeamSetupModal(true);
                     }
                   }}
                   className={`rounded-lg px-6 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-white shadow-lg transition-all duration-300 ${currentStep === 4
@@ -2570,6 +2596,88 @@ function DashboardInvestigator({ token }) {
                   {currentStep < 4 ? 'Siguiente →' : 'Ir a Nexus →'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTeamSetupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 px-4 py-8 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div>
+                <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
+                  Configuración del Grupo de Trabajo
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  Por favor registra los integrantes del equipo para el reporte de investigación.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                  Número de integrantes (Mínimo 2):
+                </label>
+                <input
+                  type="number"
+                  min="2"
+                  value={memberCount}
+                  onChange={(e) => {
+                    const val = Math.max(2, parseInt(e.target.value) || 2);
+                    setMemberCount(val);
+                    setMemberNames((prev) => {
+                      const copy = [...prev];
+                      while (copy.length < val) copy.push('');
+                      return copy.slice(0, val);
+                    });
+                  }}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
+                />
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                  Nombres de los integrantes:
+                </label>
+                {memberNames.map((name, index) => (
+                  <div key={index} className="space-y-1">
+                    <span className="text-[10px] text-slate-500 font-mono">Integrante {index + 1}:</span>
+                    <input
+                      type="text"
+                      placeholder={`Nombre del Integrante ${index + 1}`}
+                      value={name}
+                      onChange={(e) => {
+                        const copy = [...memberNames];
+                        copy[index] = e.target.value;
+                        setMemberNames(copy);
+                      }}
+                      className="w-full rounded-lg border border-slate-850 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 transition-all font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const valids = memberNames.filter((n) => n.trim() !== '');
+                  if (valids.length < 2) {
+                    alert('Debes registrar al menos 2 integrantes con nombre para poder continuar.');
+                    return;
+                  }
+                  // Save team to localstorage
+                  localStorage.setItem(`nexus_team_members_${usuario?.id}`, JSON.stringify(memberNames));
+                  setShowTeamSetupModal(false);
+                  setTutorialStep(1);
+                }}
+                className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg font-mono"
+              >
+                Comenzar simulación
+              </button>
             </div>
           </div>
         </div>
