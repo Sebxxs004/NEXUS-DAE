@@ -55,17 +55,17 @@ El sistema opera bajo un **temporizador regresivo** configurable que simula la p
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     CLIENTE (SPA)                       │
-│   React 18 + Vite + TailwindCSS + Zustand              │
+│   React 18 + Vite + TailwindCSS + Zustand               │
 │                                                         │
 │  ┌──────────┐ ┌──────────────┐ ┌──────────────────────┐ │
 │  │ LoginPage│ │DashboardAdmin│ │DashboardInvestigator │ │
 │  └──────────┘ └──────────────┘ └──────────────────────┘ │
-│       │              │                    │              │
-│       │    ┌─────────┴────────────────────┘              │
-│       │    │  Zustand Auth Store                         │
-│       │    │  (useAuthStore / useGameStore)               │
-│       └────┴─────────────┬──────────────────────────────│
-│                          │ Axios HTTP                    │
+│       │              │                    │             │
+│       │    ┌─────────┴────────────────────┘             │
+│       │    │  Zustand Auth Store                        │
+│       │    │  (useAuthStore / useGameStore)             │
+│       └────┴─────────────┬────────────────              │
+│                          │ Axios HTTP                   │
 └──────────────────────────┼──────────────────────────────┘
                            │
                     ┌──────┴──────┐
@@ -220,7 +220,7 @@ NEXUS-DAE/
               └─────────────┘
 
               ┌──────────────────┐     ┌─────────────────────────┐
-              │grupos_asociacion │     │ grupos_asociacion_casos  │
+              │grupos_asociacion │     │ grupos_asociacion_casos │
               ├──────────────────┤     ├─────────────────────────┤
               │ id (UUID)        │◄────│ grupo_id (FK)           │
               │ nombre           │     │ carpeta_id (FK)         │
