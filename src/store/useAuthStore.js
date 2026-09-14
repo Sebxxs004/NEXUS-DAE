@@ -3,6 +3,25 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.DEV ? `http://${window.location.hostname}:5000/api` : (import.meta.env.VITE_API_URL || '/api');
 
+// Axios interceptor to handle expired or invalid tokens automatically
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clean up local auth state
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      // Set store state to unauthenticated
+      useAuthStore.setState({
+        token: null,
+        usuario: null,
+        isAuthenticated: false
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
 const useAuthStore = create((set, get) => ({
   usuario: null,
   token: null,

@@ -574,10 +574,21 @@ function DashboardInvestigator({ token }) {
     return () => clearInterval(timerId);
   }, [authHeaders, token]);
 
-  // Sync elapsedSeconds from backend profile ONCE when it first loads
+  // Sync elapsedSeconds and shownEventIds from backend profile ONCE when it first loads
   useEffect(() => {
-    if (!profileSyncDone && usuario?.elapsed_seconds != null) {
-      setElapsedSeconds(usuario.elapsed_seconds);
+    if (!profileSyncDone && usuario) {
+      if (usuario.elapsed_seconds != null) {
+        setElapsedSeconds(usuario.elapsed_seconds);
+        setLastEventTriggeredTime(usuario.elapsed_seconds);
+      }
+      if (usuario.shown_event_ids) {
+        try {
+          const ids = JSON.parse(usuario.shown_event_ids);
+          setShownEventIds(ids);
+        } catch (e) {
+          console.error('Error parsing shown_event_ids from sync:', e);
+        }
+      }
       setProfileSyncDone(true);
     }
   }, [usuario, profileSyncDone]);
