@@ -209,3 +209,21 @@ CREATE TABLE IF NOT EXISTS alertas_delegadas (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Equipos de trabajo (Alfa, Bravo, Charlie)
+INSERT INTO equipos (id, nombre, codigo, duracion_segundos) VALUES
+  ('d72acef3-dcd3-4e2a-8c69-f3696417d1d5', 'Equipo Alfa', 'EQ-ALFA', 7200),
+  ('a12b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', 'Equipo Bravo', 'EQ-BRAVO', 7200),
+  ('b23c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e', 'Equipo Charlie', 'EQ-CHARLIE', 7200)
+ON CONFLICT (codigo) DO UPDATE SET duracion_segundos = 7200;
+
+-- 3 Fiscales y 3 Asistentes (Contraseñas: fiscal123 / asistente123)
+INSERT INTO usuarios (nombre, email, password_hash, rol_id, equipo_id, activo, primera_vez) VALUES
+  ('Fiscal Delegado Alfa', 'fiscal1@nexus.dae', '$2a$10$je3dj2ggVt7jYOUdQPYT6OSbgiBsgZIBTyXuNawuXZ6nVKFFuiUpy', 2, 'd72acef3-dcd3-4e2a-8c69-f3696417d1d5', TRUE, TRUE),
+  ('Asistente Fiscal Alfa', 'asistente1@nexus.dae', '$2a$10$9UoCmJ9APYVDbFkpRZEuMeJSFeFN8Es584dGKyBTh1JwccKey4QAS', 3, 'd72acef3-dcd3-4e2a-8c69-f3696417d1d5', TRUE, TRUE),
+  ('Fiscal Delegado Bravo', 'fiscal2@nexus.dae', '$2a$10$je3dj2ggVt7jYOUdQPYT6OSbgiBsgZIBTyXuNawuXZ6nVKFFuiUpy', 2, 'a12b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', TRUE, TRUE),
+  ('Asistente Fiscal Bravo', 'asistente2@nexus.dae', '$2a$10$9UoCmJ9APYVDbFkpRZEuMeJSFeFN8Es584dGKyBTh1JwccKey4QAS', 3, 'a12b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', TRUE, TRUE),
+  ('Fiscal Delegado Charlie', 'fiscal3@nexus.dae', '$2a$10$je3dj2ggVt7jYOUdQPYT6OSbgiBsgZIBTyXuNawuXZ6nVKFFuiUpy', 2, 'b23c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e', TRUE, TRUE),
+  ('Asistente Fiscal Charlie', 'asistente3@nexus.dae', '$2a$10$9UoCmJ9APYVDbFkpRZEuMeJSFeFN8Es584dGKyBTh1JwccKey4QAS', 3, 'b23c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e', TRUE, TRUE)
+ON CONFLICT (email) DO UPDATE SET equipo_id = EXCLUDED.equipo_id, rol_id = EXCLUDED.rol_id;
