@@ -43,7 +43,13 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, u.created_groups, u.shown_event_ids, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.email = $1 AND u.activo = TRUE',
+      `SELECT u.id, u.nombre, u.email, u.password_hash, u.primera_vez, u.elapsed_seconds, 
+              u.created_groups, u.shown_event_ids, u.equipo_id, eq.nombre as equipo_nombre, 
+              eq.codigo as equipo_codigo, r.nombre as rol 
+       FROM usuarios u 
+       JOIN roles r ON u.rol_id = r.id 
+       LEFT JOIN equipos eq ON u.equipo_id = eq.id 
+       WHERE u.email = $1 AND u.activo = TRUE`,
       [email]
     );
 
@@ -57,7 +63,7 @@ router.post('/login', async (req, res) => {
     const passwordValido = await matchesPassword(
       password,
       usuario.password_hash,
-      usuario.rol === 'admin' ? 'admin123' : 'investigador123'
+      usuario.rol === 'admin' ? 'admin123' : (usuario.rol === 'asistente' ? 'asistente123' : 'investigador123')
     );
 
     if (!passwordValido) {
@@ -80,6 +86,9 @@ router.post('/login', async (req, res) => {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: usuario.rol,
+        equipo_id: usuario.equipo_id,
+        equipo_nombre: usuario.equipo_nombre,
+        equipo_codigo: usuario.equipo_codigo,
         primera_vez: usuario.primera_vez,
         elapsed_seconds: usuario.elapsed_seconds,
         created_groups: usuario.created_groups,
@@ -147,7 +156,7 @@ router.post('/save-events', authenticate, async (req, res) => {
 // Registrar usuario (solo admin)
 router.post('/register', async (req, res) => {
   try {
-    const { nombre, email, rol } = req.body;
+    const { nombre, email, rol, equipo_id } = req.body;
 
     if (!nombre || !email || !rol) {
       return res.status(400).json({ error: 'Todos los campos requeridos' });
@@ -162,8 +171,8 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcryptjs.hash(tempPassword, 10);
 
     const result = await pool.query(
-      'INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES ($1, $2, $3, $4) RETURNING id, nombre, email',
-      [nombre, email, hashedPassword, rolResult.rows[0].id]
+      'INSERT INTO usuarios (nombre, email, password_hash, rol_id, equipo_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, email',
+      [nombre, email, hashedPassword, rolResult.rows[0].id, equipo_id || null]
     );
 
     res.json({ usuario: result.rows[0], tempPassword });
@@ -176,7 +185,13 @@ router.post('/register', async (req, res) => {
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.primera_vez, u.elapsed_seconds, u.created_groups, u.shown_event_ids, r.nombre as rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = $1',
+      `SELECT u.id, u.nombre, u.email, u.primera_vez, u.elapsed_seconds, u.created_groups, 
+              u.shown_event_ids, u.equipo_id, eq.nombre as equipo_nombre, eq.codigo as equipo_codigo, 
+              r.nombre as rol 
+       FROM usuarios u 
+       JOIN roles r ON u.rol_id = r.id 
+       LEFT JOIN equipos eq ON u.equipo_id = eq.id 
+       WHERE u.id = $1`,
       [req.user.id]
     );
     if (result.rows.length === 0) {

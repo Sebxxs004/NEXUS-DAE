@@ -29,7 +29,7 @@ const ensureConfigTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS configuracion_sistema (
       id SERIAL PRIMARY KEY,
-      tiempo_limite_minutos INTEGER NOT NULL DEFAULT 180,
+      tiempo_limite_minutos INTEGER NOT NULL DEFAULT 120,
       alerta_minutos_agregados INTEGER DEFAULT 0,
       alerta_version INTEGER DEFAULT 0,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -43,7 +43,7 @@ const ensureConfigTable = async () => {
   
   const result = await pool.query('SELECT count(*) FROM configuracion_sistema');
   if (parseInt(result.rows[0].count) === 0) {
-    await pool.query('INSERT INTO configuracion_sistema (tiempo_limite_minutos) VALUES (180)');
+    await pool.query('INSERT INTO configuracion_sistema (tiempo_limite_minutos) VALUES (120)');
   }
 };
 

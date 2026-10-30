@@ -9,6 +9,7 @@ import {
   FiDownload,
   FiFileText,
   FiFolder,
+  FiUserCheck,
   FiLink,
   FiMapPin,
   FiPlay,
@@ -26,6 +27,7 @@ import {
 } from 'react-icons/fi';
 import useAuthStore from '../store/useAuthStore';
 import CasesSidebarModule from './CasesSidebarModule';
+import ModalDelegarActividad from './ModalDelegarActividad';
 import fgnLogo from '../assets/fgn-logo.png';
 import nexusLogo from '../assets/NEXUS-DAE.png';
 import fondoLogin from '../assets/fondo-login.png';
@@ -461,10 +463,12 @@ function DashboardInvestigator({ token }) {
   const [carpetas, setCarpetas] = useState([]);
   const [documentsByCase, setDocumentsByCase] = useState({});
   const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [isDelegarModalOpen, setIsDelegarModalOpen] = useState(false);
+  const [caseToDelegate, setCaseToDelegate] = useState(null);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isCaseSummaryOpen, setIsCaseSummaryOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('lobby');
-  const [configData, setConfigData] = useState({ tiempo_limite_minutos: 180 });
+  const [configData, setConfigData] = useState({ tiempo_limite_minutos: 120 });
 
 
   const [loadingCases, setLoadingCases] = useState(false);
@@ -480,7 +484,8 @@ function DashboardInvestigator({ token }) {
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
 
   const [startTimestamp, setStartTimestamp] = useState(Date.now());
-  const [elapsedSeconds, setElapsedSeconds] = useState(() => usuario?.elapsed_seconds || 0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [teamTimerStarted, setTeamTimerStarted] = useState(false);
   const [profileSyncDone, setProfileSyncDone] = useState(false);
 
   const handleLogout = async () => {
@@ -1348,12 +1353,124 @@ function DashboardInvestigator({ token }) {
   const [activeEventStep, setActiveEventStep] = useState(1); // 1 = decision, 2 = action/image view
   const [eventReplyText, setEventReplyText] = useState('');
   const [eventResponses, setEventResponses] = useState({}); // eventId -> { name: string, type: string, decision: string, reply?: string }
-  const [eventCountdown, setEventCountdown] = useState(60);
+  const [eventCountdown, setEventCountdown] = useState(180);
+  const [delegatingAlert, setDelegatingAlert] = useState(false);
+  const [delegationSuccessToast, setDelegationSuccessToast] = useState('');
+  const [lastPenaltyAnim, setLastPenaltyAnim] = useState(null);
+  const lastPenaltyIdRef = useRef(null);
+
+    // Aplicar penalización compartida de tiempo al equipo (2 horas compartidas)
+  const aplicarPenalizacionEquipo = async (minutos, motivo = 'Decisión de investigación') => {
+    const segundos = minutos * 60;
+    setElapsedSeconds((prev) => prev + segundos);
+    if (usuario?.equipo_id) {
+      try {
+        await axios.post(
+          `${API_URL}/equipos/${usuario.equipo_id}/timer/penalty`,
+          {
+            minutes: minutos,
+            reason: motivo,
+            byUser: usuario?.nombre || 'Fiscal Delegado'
+          },
+          { headers: authHeaders }
+        );
+      } catch (e) {
+        console.warn('Error registrando penalización en equipo:', e);
+      }
+    }
+  };
+
+  
+  // Auto-iniciar timer compartido si el usuario ya está activo
+  useEffect(() => {
+    if (usuario?.equipo_id && usuario?.primera_vez === false) {
+      axios.post(`${API_URL}/equipos/${usuario.equipo_id}/timer/start`, {}, { headers: authHeaders })
+        .then(() => setTeamTimerStarted(true))
+        .catch(console.warn);
+    }
+  }, [usuario?.equipo_id, usuario?.primera_vez, authHeaders]);
+
+  // Sincronización en tiempo real del timer del equipo (2 HORAS = 7200s COMPARTIDAS)
+  useEffect(() => {
+    if (!usuario?.equipo_id) return;
+    const pollTeamTimer = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/equipos/${usuario.equipo_id}/timer`, { headers: authHeaders });
+        if (res.data) {
+          if (res.data.started) {
+            setTeamTimerStarted(true);
+            const totalElapsed = (res.data.elapsedSeconds ?? res.data.elapsed_seconds ?? 0) + (res.data.accumulatedPenaltySeconds ?? 0);
+            setElapsedSeconds(totalElapsed);
+          } else {
+            setTeamTimerStarted(false);
+            setElapsedSeconds(0);
+          }
+          const penalty = res.data.lastPenalty || res.data.last_penalty;
+          if (penalty && penalty.timestamp !== lastPenaltyIdRef.current) {
+            lastPenaltyIdRef.current = penalty.timestamp;
+            setLastPenaltyAnim(penalty);
+            setTimeout(() => setLastPenaltyAnim(null), 3500);
+          }
+        }
+      } catch (err) {
+        console.warn('Error sincronizando timer del equipo:', err);
+      }
+    };
+    pollTeamTimer();
+    const interval = setInterval(pollTeamTimer, 1500);
+    return () => clearInterval(interval);
+  }, [usuario?.equipo_id, authHeaders]);
+
+  // Delegar actuación al Asistente de Fiscal
+  const delegarAlAsistente = async () => {
+    if (!activeEvent) return;
+    setDelegatingAlert(true);
+    const targetEquipoId = usuario?.equipo_id || 'general';
+    try {
+      await axios.post(`${API_URL}/equipos/${encodeURIComponent(targetEquipoId)}/alertas`, {
+        eventoId: activeEvent.id,
+        titulo: activeEvent.nombre.startsWith('alerta') ? 'Alerta de Correo Institucional ARKIVA' : 'Atención de Usuario en Despacho',
+        subtitulo: activeEvent.nombre,
+        dialogo: activeEvent.nombre.startsWith('alerta') ? 'Alerta urgente recibida en el buzón institucional del despacho.' : 'Usuario presente en despacho fiscal para atención y entrevista.',
+        delito: 'DILIGENCIA FISCAL',
+        radicado: 'Caso en Despacho',
+        casoNombre: activeEvent.nombre,
+        delegadoPor: usuario?.nombre || 'Fiscal Delegado',
+        opciones: activeEvent.nombre.startsWith('alerta')
+          ? [
+              'Ignorar o descartar esta solicitud / actividad',
+              'Proyectar minuta de respuesta formal y presentar al Fiscal',
+              'Verificar folios y solicitar ampliación técnica a Policía Judicial'
+            ]
+          : [
+              'Ignorar o descartar esta solicitud / actividad',
+              'Recepcionar entrevista y elaborar formato de policía judicial',
+              'Trasladar requerimiento de vuelta con concepto previo'
+            ]
+      }, { headers: authHeaders });
+    } catch (err) {
+      console.warn('Error delegando alerta al asistente:', err);
+    } finally {
+      setDelegatingAlert(false);
+    }
+
+    setEventResponses((prev) => ({
+      ...prev,
+      [activeEvent.id]: {
+        name: activeEvent.nombre,
+        type: activeEvent.nombre.startsWith('alerta') ? 'alerta' : 'persona',
+        decision: 'Trasladada y delegada al Asistente de Fiscal para resolución operativa'
+      }
+    }));
+    setDelegationSuccessToast('Actuación trasladada y delegada exitosamente al Asistente.');
+    setTimeout(() => setDelegationSuccessToast(''), 4000);
+    setActiveEvent(null);
+  };
 
   // Set countdown to 60 when activeEvent triggers
   useEffect(() => {
     if (activeEvent) {
-      setEventCountdown(60);
+      setEventCountdown(180);
     }
   }, [activeEvent]);
 
@@ -1367,7 +1484,7 @@ function DashboardInvestigator({ token }) {
           clearInterval(interval);
           const isAlerta = activeEvent.nombre.startsWith('alerta');
           if (isAlerta) {
-            setElapsedSeconds((e) => e + 120); // Penalización +2m
+            aplicarPenalizacionEquipo(2, 'Tiempo agotado en alerta institucional');
             setEventResponses((resps) => ({
               ...resps,
               [activeEvent.id]: {
@@ -1377,7 +1494,7 @@ function DashboardInvestigator({ token }) {
               }
             }));
           } else {
-            setElapsedSeconds((e) => e + 300); // Penalización +5m
+            aplicarPenalizacionEquipo(5, 'Tiempo agotado en atención presencial de usuario');
             setEventResponses((resps) => ({
               ...resps,
               [activeEvent.id]: {
@@ -1444,7 +1561,7 @@ function DashboardInvestigator({ token }) {
     }
 
     // Determine target delay: 2 minutes (120s) for first event, 10 minutes (600s) for subsequent ones
-    const requiredDelay = shownEventIds.length === 0 ? 120 : 600;
+    const requiredDelay = 600; // Alertas exactamente cada 10 minutos (600s)
     const secondsSinceLast = elapsedSeconds - lastEventTriggeredTime;
 
     if (secondsSinceLast >= requiredDelay) {
@@ -2412,7 +2529,7 @@ function DashboardInvestigator({ token }) {
 
                     {/* Paragraph */}
                     <p className="text-sm leading-relaxed text-slate-300 animate-stagger-5">
-                      Su equipo es limitado. No cuenta con asistente, pero tiene asignado un judicante que podrá apoyarlo. El tiempo también es limitado. Y cada decisión tendrá consecuencias.
+                      Su equipo de trabajo cuenta con un asistente de fiscal que apoyará las labores operativas e investigativas del despacho. El tiempo es de 2 horas y es compartido en equipo. Cada decisión tendrá consecuencias.
                     </p>
                   </div>
                 )}
@@ -2614,80 +2731,62 @@ function DashboardInvestigator({ token }) {
 
       {showTeamSetupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 px-4 py-8 backdrop-blur-md">
-          <div className="w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-              <div>
-                <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
-                  Configuración del Grupo de Trabajo
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 font-mono">
-                  Por favor registra los integrantes del equipo para el reporte de investigación.
-                </p>
-              </div>
+          <div className="w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-[#070b13]/95 p-6 shadow-[0_0_50px_rgba(6,182,212,0.2)] flex flex-col">
+            <div className="border-b border-slate-800 pb-3 mb-4">
+              <h3 className="font-mono text-base font-bold text-cyan-400 uppercase tracking-wider">
+                Configuración del Grupo de Trabajo (Fiscal)
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 font-mono">
+                Ingresa los integrantes del equipo que participan en esta estación para el reporte oficial de investigación.
+              </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                  Número de integrantes (Mínimo 2):
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono">
+                  Nombres de los integrantes (separados por coma o salto de línea):
                 </label>
-                <input
-                  type="number"
-                  min="2"
-                  value={memberCount}
-                  onChange={(e) => {
-                    const val = Math.max(2, parseInt(e.target.value) || 2);
-                    setMemberCount(val);
-                    setMemberNames((prev) => {
-                      const copy = [...prev];
-                      while (copy.length < val) copy.push('');
-                      return copy.slice(0, val);
-                    });
-                  }}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400 transition-all font-mono"
+                <textarea
+                  rows={3}
+                  placeholder="Ej: Dra. Claudia Patricia Meza, Andrés Felipe Morales, Carlos Mario Rivas"
+                  value={teamMembersInputString}
+                  onChange={(e) => setTeamMembersInputString(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400 font-mono transition shadow-inner leading-relaxed resize-none"
                 />
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
-                  Nombres de los integrantes:
-                </label>
-                {memberNames.map((name, index) => (
-                  <div key={index} className="space-y-1">
-                    <span className="text-[10px] text-slate-500 font-mono">Integrante {index + 1}:</span>
-                    <input
-                      type="text"
-                      placeholder={`Nombre del Integrante ${index + 1}`}
-                      value={name}
-                      onChange={(e) => {
-                        const copy = [...memberNames];
-                        copy[index] = e.target.value;
-                        setMemberNames(copy);
-                      }}
-                      className="w-full rounded-lg border border-slate-850 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 transition-all font-mono"
-                    />
-                  </div>
-                ))}
+                <p className="text-[11px] text-slate-500 font-mono mt-1.5">
+                  Los integrantes ingresados se certificarán en el informe final descargable en PDF.
+                </p>
               </div>
             </div>
 
             <div className="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
               <button
                 type="button"
-                onClick={() => {
-                  const valids = memberNames.filter((n) => n.trim() !== '');
-                  if (valids.length < 2) {
-                    alert('Debes registrar al menos 2 integrantes con nombre para poder continuar.');
+                onClick={async () => {
+                  const valids = teamMembersInputString.split(/[,;\n]+/).map((n) => n.trim()).filter(Boolean);
+                  if (valids.length === 0) {
+                    alert('Debes ingresar al menos el nombre de un integrante para continuar.');
                     return;
                   }
-                  // Save team to localstorage
-                  localStorage.setItem(`nexus_team_members_${usuario?.id}`, JSON.stringify(memberNames));
+                  localStorage.setItem(`nexus_team_members_${usuario?.id}`, JSON.stringify(valids));
+                  localStorage.setItem(`nexus_team_members_raw_${usuario?.id}`, teamMembersInputString);
+                  setMemberNames(valids);
                   setShowTeamSetupModal(false);
-                  setTutorialStep(1);
+                  setTutorialStep(0);
+                  try {
+                    await completarPrimeraVez();
+                  } catch (e) {
+                    console.error(e);
+                  }
+                  if (usuario?.equipo_id) {
+                    axios.post(`${API_URL}/equipos/${usuario.equipo_id}/timer/start`, {}, { headers: authHeaders })
+                      .then(() => setTeamTimerStarted(true))
+                      .catch(console.warn);
+                  }
                 }}
-                className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 px-6 py-2.5 text-xs font-bold text-cyan-200 transition shadow-lg font-mono"
+                className="rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border border-cyan-400/40 px-6 py-2.5 text-xs font-bold text-white transition shadow-lg font-mono tracking-wider"
               >
-                Comenzar simulación
+                Comenzar investigación →
               </button>
             </div>
           </div>
@@ -2711,10 +2810,18 @@ function DashboardInvestigator({ token }) {
             </button>
 
             {/* Alarming Timer Badge */}
-            <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-800 via-red-600 to-rose-700 px-6 py-2.5 font-mono text-sm md:text-base font-black tracking-widest text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] border-2 border-red-400/80 animate-pulse scale-105">
+            <div className="flex items-center gap-3">
+              {lastPenaltyAnim && (
+                <div className="animate-bounce flex items-center gap-1.5 bg-amber-500/20 border border-amber-400 text-amber-300 px-3 py-1.5 rounded-xl text-xs font-mono font-bold shadow-[0_0_15px_rgba(245,158,11,0.4)]">
+                  <span>⚠️</span>
+                  <span>−{lastPenaltyAnim.minutes || 5} min aplicados ({lastPenaltyAnim.reason || 'Deducción'})</span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-800 via-red-600 to-rose-700 px-6 py-2.5 font-mono text-sm md:text-base font-black tracking-widest text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] border-2 border-red-400/80 animate-pulse scale-105">
               <FiAlertTriangle className="text-white animate-bounce shrink-0" size={18} />
-              <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">TIEMPO LÍMITE: {formatSeconds(Math.max(0, (configData?.tiempo_limite_minutos || 180) * 60 - elapsedSeconds))}</span>
+              <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">TIEMPO LÍMITE: {formatSeconds(Math.max(0, 7200 - elapsedSeconds))}</span>
             </div>
+          </div>
           </div>
 
           {/* Center Logo & Title */}
@@ -2736,7 +2843,7 @@ function DashboardInvestigator({ token }) {
             <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
               <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
                 <FiClock className="text-cyan-400" size={15} />
-                <span>Jornada: <strong className="text-cyan-300">3 horas</strong></span>
+                <span>Jornada: <strong className="text-cyan-300">2 horas</strong></span>
               </div>
               <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
                 <FiFolder className="text-cyan-400" size={15} />
@@ -2744,7 +2851,7 @@ function DashboardInvestigator({ token }) {
               </div>
               <div className="flex items-center gap-2.5 rounded-xl border border-cyan-500/30 bg-slate-950/70 px-5 py-2.5 font-mono text-[13px] text-slate-200 backdrop-blur-md shadow-lg shadow-cyan-950/20">
                 <FiUsers className="text-cyan-400" size={15} />
-                <span>Equipo: <strong className="text-cyan-300">1 Judicante</strong></span>
+                <span>Equipo: <strong className="text-cyan-300">1 Asistente</strong></span>
               </div>
             </div>
           </div>
@@ -2768,6 +2875,23 @@ function DashboardInvestigator({ token }) {
               </div>
               <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-cyan-300">Procesos del despacho</span>
               <span className="text-xs text-slate-400">Noticias criminales y expedientes</span>
+            </button>
+
+            {/* Center Button: Delegar Actividades al Asistente */}
+            <button
+              onClick={() => {
+                setCaseToDelegate(null);
+                setIsDelegarModalOpen(true);
+              }}
+              className="flex flex-col items-center justify-center p-5 w-full md:w-72 h-36 rounded-xl border-2 border-amber-500/80 bg-gradient-to-b from-amber-950/60 via-slate-950/90 to-amber-950/50 hover:border-amber-400 hover:bg-amber-950/80 transition-all duration-300 text-center space-y-2 group shadow-xl hover:shadow-[0_0_30px_rgba(245,158,11,0.4)]"
+            >
+              <div className="p-2.5 rounded-lg bg-amber-500/20 text-amber-300 group-hover:scale-110 transition-transform">
+                <FiUserCheck size={22} />
+              </div>
+              <span className="font-mono text-sm font-bold uppercase tracking-wider text-amber-200 group-hover:text-amber-100">
+                Delegar al Asistente
+              </span>
+              <span className="text-xs text-amber-400/80">Asignar diligencias y ver estado</span>
             </button>
 
             {/* Right Button */}
@@ -2810,6 +2934,10 @@ function DashboardInvestigator({ token }) {
           onOpenCaseDetails={handleOpenCaseDetails}
           onSwitchToBoard={() => setActiveSection('tablero')}
           onSwitchToLobby={() => setActiveSection('lobby')}
+          onOpenDelegarModal={(c) => {
+            setCaseToDelegate(c);
+            setIsDelegarModalOpen(true);
+          }}
           tutorialStep={tutorialStep}
           setTutorialStep={setTutorialStep}
           onStartDecisionForGroup={startDecisionFlowForGroup}
@@ -2897,13 +3025,13 @@ function DashboardInvestigator({ token }) {
                                  : ''
                              }`}>
                                {DECISION_OPTIONS.map((opt) => {
-                                 const isChecked = (tutorialStep === 9.2 || tutorialStep === 9.3) ? (opt.id === 1) : selectedDecisionOptions.includes(opt.id);
+                                 const isChecked = selectedDecisionOptions.includes(opt.id);
                                  return (
                                    <label key={opt.id} className="flex items-start gap-3 cursor-pointer text-slate-300 hover:text-slate-100 transition select-none">
                                      <input
                                        type="checkbox"
                                        checked={isChecked}
-                                       disabled={tutorialStep === 9.2 || tutorialStep === 9.3}
+                                       disabled={false}
                                        onChange={() => handleOptionToggle(opt.id)}
                                        className="mt-1 h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
                                      />
@@ -2915,7 +3043,7 @@ function DashboardInvestigator({ token }) {
 
                              {/* Questions/Textareas rendered in the selected order */}
                              <div className="space-y-4 pt-4 border-t border-slate-800/60">
-                               {((tutorialStep === 9.2 || tutorialStep === 9.3) ? [1] : selectedDecisionOptions).map((optId, idx) => {
+                               {selectedDecisionOptions.map((optId, idx) => {
                                  const opt = DECISION_OPTIONS.find((o) => o.id === optId);
                                  if (!opt) return null;
                                  return (
@@ -2937,8 +3065,8 @@ function DashboardInvestigator({ token }) {
                                      </div>
                                      <textarea
                                        rows={2}
-                                       value={(tutorialStep === 9.2 || tutorialStep === 9.3) ? 'Se ordena el esclarecimiento prioritario de la conexidad.' : (decisionJustifications[optId] || '')}
-                                       disabled={tutorialStep === 9.2 || tutorialStep === 9.3}
+                                       value={decisionJustifications[optId] || ''}
+                                       disabled={false}
                                        onChange={(e) => handleJustificationChange(optId, e.target.value)}
                                        placeholder="Escribe la justificación de esta decisión..."
                                        className="w-full rounded-lg border border-slate-800 bg-[#030712] p-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 resize-none transition-all font-mono"
@@ -3523,129 +3651,12 @@ function DashboardInvestigator({ token }) {
             </div>
           )}
 
-      {/* Tutorial Overlay */}
-      {(tutorialStep === 1 || tutorialStep === 2 || tutorialStep === 10) && (
-        <div className={`fixed inset-0 z-[9999] flex flex-col items-center p-4 transition-all ${tutorialStep === 1 ? 'justify-start pt-10 md:pt-16' : 'justify-center'}`}>
-          {/* Dark vignette background overlay */}
-          <div className={`absolute inset-0 transition-all ${tutorialStep === 1 ? 'bg-slate-950/45 backdrop-blur-none' : 'bg-slate-950/80 backdrop-blur-sm'}`} />
+      
 
-          {tutorialStep === 1 && (
-            <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom">
-              <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-bounce">
-                🎯
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
-                  Paseo por tu Despacho
-                </h3>
-                <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                  Pantalla Principal (Dashboard)
-                </p>
-                <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
-                  Este es tu **Dashboard principal**. Aquí tendrás una vista general de tu jornada como fiscal, incluyendo el temporizador límite del juego y los accesos rápidos a las herramientas de investigación.
-                </p>
-              </div>
-              <div className="flex justify-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => setTutorialStep(2)}
-                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                >
-                  Siguiente →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {tutorialStep === 2 && (
-            <>
-              {/* Spotlight Clone Button */}
-              <div className="hidden md:block md:absolute md:bottom-8 md:left-8 z-[10000] scale-105 pointer-events-none">
-                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-cyan-400 bg-slate-950 text-center space-y-2 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.6)]">
-                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-                    <FiFolder size={20} />
-                  </div>
-                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Procesos del despacho</span>
-                  <span className="text-xs text-slate-400">Noticias criminales y expedientes</span>
-                </div>
-              </div>
-
-              {/* Spotlight Pointer / Card */}
-              <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:left-8 z-[10000]">
-                <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-pulse">
-                  📂
-                </div>
-                <div className="space-y-2">
-                  <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
-                    Procesos del Despacho
-                  </h3>
-                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                    Gestión de Casos y Noticias Criminales
-                  </p>
-                  <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
-                    Este es el botón de **Procesos**. Al ingresar aquí podrás analizar expedientes, revisar noticias criminales, radicar casos en grupos de asociación delictiva y revisar la bitácora general de forma detallada.
-                  </p>
-                </div>
-                <div className="flex justify-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveSection('casos');
-                      setTutorialStep(3);
-                    }}
-                    className="rounded-lg bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                  >
-                    Ir a Procesos →
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {tutorialStep === 10 && (
-            <>
-              {/* Spotlight Clone Button right */}
-              <div className="hidden md:block md:absolute md:bottom-8 md:right-8 z-[10000] scale-105 pointer-events-none">
-                <div className="flex flex-col items-center justify-center p-5 w-72 h-36 rounded-xl border-2 border-emerald-400 bg-slate-950 text-center space-y-2 ring-4 ring-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.6)]">
-                  <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                    <FiCheckCircle size={20} />
-                  </div>
-                  <span className="font-mono text-sm font-bold uppercase tracking-wider text-slate-200">Finalizar Investigación</span>
-                  <span className="text-xs text-slate-400">Generar reporte y cerrar sesión</span>
-                </div>
-              </div>
-
-              {/* Spotlight Pointer / Card right */}
-              <div className="relative w-full max-w-lg rounded-2xl border border-cyan-500/30 bg-slate-900/95 p-6 text-center space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.3)] animate-welcome-zoom md:absolute md:bottom-48 md:right-8 z-[10000]">
-                <div className="h-14 w-14 bg-cyan-500/10 border border-cyan-400/30 rounded-full flex items-center justify-center text-cyan-400 text-2xl mx-auto animate-pulse">
-                  ⚡
-                </div>
-                <div className="space-y-2">
-                  <h3 className="font-mono text-lg font-bold text-cyan-300 uppercase tracking-widest">
-                    Finalizar Investigación
-                  </h3>
-                  <p className="text-xs uppercase tracking-wider text-slate-400 font-mono">
-                    Paso 12 de 12
-                  </p>
-                  <p className="text-sm text-slate-300 mt-4 leading-relaxed font-mono">
-                    Una vez que hayas asociado todos los expedientes del despacho en sus respectivos grupos y registrado sus justificaciones, regresa al Lobby y presiona **Finalizar Investigación** para cerrar el juego y descargar tu reporte PDF general.
-                  </p>
-                </div>
-                <div className="flex justify-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTutorialStep(0);
-                      completarPrimeraVez();
-                    }}
-                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/30 px-8 py-3 text-xs font-bold text-white transition font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                  >
-                    Finalizar Paseo 🏁
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+      {delegationSuccessToast && (
+        <div className="fixed top-20 right-6 z-[9999999] animate-bounce flex items-center gap-3 rounded-2xl border-2 border-amber-400 bg-slate-900/95 p-4 shadow-[0_0_35px_rgba(245,158,11,0.5)] font-mono text-sm text-amber-200">
+          <span>📋</span>
+          <span>{delegationSuccessToast}</span>
         </div>
       )}
 
@@ -3675,7 +3686,7 @@ function DashboardInvestigator({ token }) {
                   {/* Countdown Timer */}
                   <div className="mt-3 inline-flex flex-col items-center bg-red-900/20 border border-red-500/40 rounded-xl px-8 py-2.5 select-none shadow-[0_0_15px_rgba(239,68,68,0.2)]">
                     <span className="text-[10px] tracking-[0.2em] uppercase text-red-400 font-mono font-extrabold animate-pulse">TIEMPO LÍMITE DE DECISIÓN</span>
-                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{eventCountdown}s</span>
+                    <span className="text-3xl font-black text-red-500 font-mono tracking-widest drop-shadow-[0_0_10px_rgba(239,68,68,0.7)]">{Math.floor(eventCountdown / 60).toString().padStart(2, "0")}:{Math.floor(eventCountdown % 60).toString().padStart(2, "0")}</span>
                   </div>
                 </div>
 
@@ -3685,10 +3696,21 @@ function DashboardInvestigator({ token }) {
                       Ha recibido una alerta urgente en su buzón de ARKIVA. Decida cómo proceder:
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                      {/* Botón Delegar al Asistente */}
+                      <button
+                        type="button"
+                        onClick={delegarAlAsistente}
+                        disabled={delegatingAlert}
+                        className="col-span-1 md:col-span-2 rounded-xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/80 via-yellow-950/70 to-amber-950/80 p-3.5 text-sm font-bold text-amber-200 hover:from-amber-900/90 hover:to-yellow-900/90 transition-all font-mono flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(245,158,11,0.35)] active:scale-95"
+                      >
+                        <span className="text-base">📋</span>
+                        <span className="tracking-wide">Trasladar y Delegar al Asistente</span>
+                        <span className="text-[10px] text-amber-300 font-normal bg-amber-950/90 border border-amber-500/40 px-2 py-0.5 rounded-full">(No resta tiempo al Fiscal)</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setElapsedSeconds(prev => prev + 120); // Resta 2 min
+                          aplicarPenalizacionEquipo(2, 'Lectura de correo institucional');
                           setActiveEventStep(2);
                           setEventResponses(prev => ({
                             ...prev,
@@ -3799,10 +3821,23 @@ function DashboardInvestigator({ token }) {
                       Ha llegado un usuario a su despacho para una entrevista. Debe decidir cómo atender la situación:
                     </p>
                     <div className="flex flex-col gap-3 pt-4">
+                      {/* Botón Delegar Atención al Asistente */}
+                      <button
+                        type="button"
+                        onClick={delegarAlAsistente}
+                        disabled={delegatingAlert}
+                        className="w-full rounded-xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/80 via-yellow-950/70 to-amber-950/80 p-3.5 text-sm font-bold text-amber-200 hover:from-amber-900/90 hover:to-yellow-900/90 transition-all font-mono flex items-center justify-between shadow-[0_0_20px_rgba(245,158,11,0.35)] active:scale-95"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">📋</span>
+                          <span className="tracking-wide">Trasladar atención al Asistente del Despacho</span>
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-normal bg-amber-950/90 border border-amber-500/40 px-2 py-0.5 rounded-full">(No resta tiempo al Fiscal)</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setElapsedSeconds(prev => prev + 300); // Resta 5 min
+                          aplicarPenalizacionEquipo(5, 'Atención presencial de usuario');
                           setActiveEventStep(2);
                           setEventResponses(prev => ({
                             ...prev,
@@ -3822,7 +3857,7 @@ function DashboardInvestigator({ token }) {
                       <button
                         type="button"
                         onClick={() => {
-                          setElapsedSeconds(prev => prev + 180); // Resta 3 min
+                          aplicarPenalizacionEquipo(3, 'Remisión a judicante');
                           setActiveEventStep(1.5); // Intermediate judicante step
                         }}
                         className="w-full rounded-lg border border-purple-500 bg-purple-950/60 p-4 text-sm font-bold text-purple-300 hover:bg-purple-900/60 transition font-mono flex items-center justify-between"
@@ -3862,7 +3897,7 @@ function DashboardInvestigator({ token }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setElapsedSeconds(prev => prev + 300); // Resta 5 min adicionales
+                        aplicarPenalizacionEquipo(5, 'Atención presencial de usuario'); adicionales
                         setActiveEventStep(2);
                         setEventResponses(prev => ({
                           ...prev,
@@ -3967,6 +4002,19 @@ function DashboardInvestigator({ token }) {
           </div>
         </div>
       )}
+
+      {/* Modal para Crear y Gestionar Actividades Delegadas al Asistente */}
+      <ModalDelegarActividad
+        isOpen={isDelegarModalOpen}
+        onClose={() => {
+          setIsDelegarModalOpen(false);
+          setCaseToDelegate(null);
+        }}
+        usuario={usuario}
+        carpetas={carpetas}
+        preselectedCase={caseToDelegate}
+        authHeaders={authHeaders}
+      />
     </>
   );
 }

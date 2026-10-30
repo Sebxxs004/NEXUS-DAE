@@ -3,6 +3,7 @@ import useAuthStore from './store/useAuthStore';
 import LoginPage from './pages/LoginPage';
 import DashboardAdmin from './pages/DashboardAdmin';
 import DashboardInvestigator from './pages/DashboardInvestigator';
+import DashboardAsistente from './pages/DashboardAsistente';
 
 function App() {
   const { isAuthenticated, usuario, token, restaurarSesion } = useAuthStore();
@@ -61,8 +62,11 @@ function App() {
     return <DashboardAdmin />;
   }
 
+  if (usuario?.rol === 'asistente') {
+    return <DashboardAsistente token={token} usuario={usuario} />;
+  }
+
   return <DashboardInvestigator token={token} usuario={usuario} />;
 }
 
 export default App;
-

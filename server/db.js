@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { Pool } = require('pg');
 
 const connectionString = process.env.DATABASE_URL;
@@ -13,7 +15,7 @@ const baseConfig = connectionString
       host: process.env.DB_HOST || 'localhost',
       database: process.env.DB_NAME || 'prisma_dae',
       password: process.env.DB_PASSWORD || 'prisma_secure_2026',
-      port: process.env.DB_PORT || 5432,
+      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5435,
       ssl: useSsl ? { rejectUnauthorized: false } : undefined,
     };
 

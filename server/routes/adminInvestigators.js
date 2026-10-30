@@ -75,6 +75,9 @@ const investigatorFields = `
   u.primera_vez,
   u.created_at,
   u.updated_at,
+  u.equipo_id,
+  eq.nombre AS equipo_nombre,
+  eq.codigo AS equipo_codigo,
   r.nombre AS rol,
   COALESCE(ei.resuelto, false) AS feedback_resuelto,
   ei.id AS feedback_id,
@@ -94,6 +97,7 @@ router.get('/investigadores', authenticate, requireAdmin, async (_req, res) => {
       SELECT ${investigatorFields}
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN equipos eq ON u.equipo_id = eq.id
       LEFT JOIN evaluaciones_investigador ei ON ei.usuario_id = u.id
       ORDER BY u.created_at DESC
       `
@@ -149,30 +153,45 @@ router.post('/investigadores', authenticate, requireAdmin, async (req, res) => {
   try {
     await ensureSchema();
 
-    const { nombre, email, password } = req.body || {};
+    const { nombre, email, password, rol = 'investigador', equipo_id } = req.body || {};
     if (!nombre || !email || !password) {
       return res.status(400).json({ error: 'Nombre, email y contraseña son requeridos' });
     }
 
-    const roleResult = await pool.query('SELECT id FROM roles WHERE nombre = $1', ['investigador']);
+    const roleResult = await pool.query('SELECT id FROM roles WHERE nombre = $1', [rol]);
     if (roleResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Rol investigador no existe' });
+      return res.status(400).json({ error: `Rol ${rol} no existe` });
     }
 
     const hashedPassword = await bcryptjs.hash(String(password), 10);
     const result = await pool.query(
       `
-      INSERT INTO usuarios (nombre, email, password_hash, rol_id, activo)
-      VALUES ($1, $2, $3, $4, TRUE)
-      RETURNING id, nombre, email, activo, created_at
+      INSERT INTO usuarios (nombre, email, password_hash, rol_id, equipo_id, activo)
+      VALUES ($1, $2, $3, $4, $5, TRUE)
+      RETURNING id, nombre, email, activo, equipo_id, created_at
       `,
-      [nombre, email, hashedPassword, roleResult.rows[0].id]
+      [nombre, email, hashedPassword, roleResult.rows[0].id, equipo_id || null]
     );
 
     return res.status(201).json({ usuario: result.rows[0] });
   } catch (error) {
     console.error('Error creando investigador:', error);
     return res.status(500).json({ error: 'No fue posible crear el investigador' });
+  }
+});
+
+router.patch('/investigadores/:id/equipo', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { equipo_id } = req.body;
+    const result = await pool.query(
+      'UPDATE usuarios SET equipo_id = $1 WHERE id = $2 RETURNING id, nombre, email, equipo_id',
+      [equipo_id || null, id]
+    );
+    return res.json({ success: true, usuario: result.rows[0] });
+  } catch (error) {
+    console.error('Error asignando equipo:', error);
+    return res.status(500).json({ error: 'No fue posible asignar equipo' });
   }
 });
 

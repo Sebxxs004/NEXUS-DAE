@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,10 +21,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Conexión a la base de datos (pronto)
-// const db = require('./db');
-
-// Rutas
+// Rutas API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/carpetas', require('./routes/carpetas'));
 app.use('/api/documentos', require('./routes/documentos'));
@@ -34,6 +31,7 @@ app.use('/api/admin', require('./routes/adminInvestigators'));
 app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/eventos-despacho', require('./routes/eventosDespacho'));
 app.use('/api/investigacion-feedback', require('./routes/investigacionFeedback'));
+app.use('/api/equipos', require('./routes/equipos'));
 
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));

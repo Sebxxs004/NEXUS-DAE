@@ -12,7 +12,21 @@ CREATE TABLE roles (
 -- Insertar roles predefinidos
 INSERT INTO roles (nombre, descripcion) VALUES
   ('admin', 'Administrador del sistema - puede crear y editar casos'),
-  ('investigador', 'Investigador - puede consultar casos y crear análisis');
+  ('investigador', 'Investigador / Fiscal - puede consultar casos y crear análisis'),
+  ('asistente', 'Asistente de Fiscal - apoyo operativo y recepción de actuaciones') ON CONFLICT DO NOTHING;
+
+
+-- Tabla de Equipos Mixtos (Fiscal + Asistente)
+CREATE TABLE IF NOT EXISTS equipos (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nombre VARCHAR(100) NOT NULL,
+  codigo VARCHAR(50) UNIQUE,
+  duracion_segundos INTEGER DEFAULT 7200,
+  started_at TIMESTAMP,
+  accumulated_penalty_seconds INTEGER DEFAULT 0,
+  last_penalty JSONB,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Tabla de Usuarios
 CREATE TABLE usuarios (
@@ -21,10 +35,12 @@ CREATE TABLE usuarios (
   email VARCHAR(100) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   rol_id INTEGER NOT NULL REFERENCES roles(id),
+  equipo_id UUID REFERENCES equipos(id) ON DELETE SET NULL,
   activo BOOLEAN DEFAULT TRUE,
   primera_vez BOOLEAN DEFAULT TRUE,
   elapsed_seconds INTEGER DEFAULT 0,
   created_groups TEXT DEFAULT '[]',
+  shown_event_ids TEXT DEFAULT '[]',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -167,113 +183,29 @@ INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES
 INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES
   ('Investigador NEXUS', 'investigador@nexus.dae', '$2a$10$FKHCQXc7XFTROoLbl0aafuevadc.P1WuDQKOnmT8PZWszPqJed9l.', 2);
 
--- Casos de prueba para mostrar el juego
-INSERT INTO carpetas (nombre, descripcion, imagen_url, modalidad, patrones, es_aislado, created_by)
-VALUES
-  (
-    'Caso A - Taller de motores',
-    'Expediente con facturas alteradas, piezas duplicadas y proveedores repetidos.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    'fraude interno',
-    'facturas alteradas, piezas duplicadas, mismos proveedores',
-    FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    'Caso B - Almacen nocturno',
-    'Reingresos de inventario fuera de horario con accesos repetidos.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    'fraude interno',
-    'turnos nocturnos, acceso repetido, inventario faltante',
-    FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    'Caso C - Oficina de cuentas',
-    'Pagos desviados a cuentas puente con beneficiarios coincidentes.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    'fraude financiero',
-    'cuentas puente, transferencias similares, beneficiarios coincidentes',
-    FALSE,
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  );
-
-INSERT INTO documentos (carpeta_id, nombre, descripcion, archivo_url, created_by)
-VALUES
-  (
-    (SELECT id FROM carpetas WHERE nombre = 'Caso A - Taller de motores' LIMIT 1),
-    'Informe inicial del taller',
-    'Resumen del peritaje y lista de proveedores revisados.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1),
-    'Parte de inventario nocturno',
-    'Detalle de accesos y movimientos irregulares.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
-    'Registro de transferencias',
-    'Extractos y cuentas puente asociadas a las transferencias.',
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  );
-
-INSERT INTO grupos_asociacion (nombre, justificacion_general, created_by)
-VALUES
-  (
-    'Grupo de desvio operativo',
-    'Los tres casos comparten proveedores, movimientos nocturnos y un mismo patron de desvio.',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  );
-
-INSERT INTO grupos_asociacion_casos (grupo_id, carpeta_id)
-VALUES
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso A - Taller de motores' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1)
-  );
-
-INSERT INTO grupos_asociacion_relaciones (grupo_id, carpeta_a_id, carpeta_b_id, relation_type, justificacion, created_by)
-VALUES
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso A - Taller de motores' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1),
-    'patrones',
-    'Ambos casos muestran movimientos fuera de horario y proveedores recurrentes.',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso A - Taller de motores' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
-    'patrones',
-    'Las transferencias y las facturas alteradas apuntan al mismo circuito de desvio.',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  ),
-  (
-    (SELECT id FROM grupos_asociacion WHERE nombre = 'Grupo de desvio operativo' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso B - Almacen nocturno' LIMIT 1),
-    (SELECT id FROM carpetas WHERE nombre = 'Caso C - Oficina de cuentas' LIMIT 1),
-    'patrones',
-    'Las entradas de inventario y los pagos puente comparten el mismo horario y beneficiarios.',
-    (SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1)
-  );
-
 -- Insertar eventos de despacho por defecto para el tutorial
 INSERT INTO eventos_despacho (nombre, descripcion, tipo, opciones) VALUES
   ('alerta_1', 'Se reporta una posible fuga de información de uno de tus investigadores. ¿Qué acción tomas?', 'alerta', '[{"texto": "Iniciar investigación disciplinaria", "valor": "disciplinaria"}, {"texto": "Ignorar por ahora", "valor": "ignorar"}]'::jsonb),
   ('persona_1', 'Un informante clave solicita una reunión de seguridad urgente fuera del despacho.', 'persona', '[{"texto": "Asistir con escolta policial", "valor": "asistir_escolta"}, {"texto": "Enviar a policía judicial", "valor": "enviar_pj"}]'::jsonb)
 ON CONFLICT DO NOTHING;
+
+-- Tabla de Alertas e Interrupciones Delegadas al Asistente
+CREATE TABLE IF NOT EXISTS alertas_delegadas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  equipo_id UUID REFERENCES equipos(id) ON DELETE CASCADE,
+  evento_id UUID,
+  titulo VARCHAR(255) NOT NULL,
+  subtitulo VARCHAR(255),
+  dialogo TEXT,
+  delito VARCHAR(150),
+  radicado VARCHAR(100),
+  caso_nombre VARCHAR(255),
+  delegado_por VARCHAR(150),
+  opciones JSONB NOT NULL DEFAULT '[]'::jsonb,
+  estado VARCHAR(50) DEFAULT 'PENDIENTE',
+  opcion_seleccionada TEXT,
+  justificacion TEXT,
+  resuelto_por VARCHAR(150),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
