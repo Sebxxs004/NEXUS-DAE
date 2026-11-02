@@ -19,4 +19,4 @@ COPY --from=build /app/server/public ./public
 ENV NODE_ENV=production
 EXPOSE 5000
 
-CMD ["node", "index.js"]
+CMD ["sh", "-c", "node seed_production.js && node index.js"]

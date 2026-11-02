@@ -19,6 +19,27 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    container_name: nexus-dae-app
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: prisma_admin
+      DB_PASSWORD: prisma_secure_2026
+      DB_NAME: prisma_dae
+      DB_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - prisma-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 

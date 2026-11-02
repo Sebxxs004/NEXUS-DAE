@@ -30,6 +30,13 @@ async function seedProduction() {
         last_penalty JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS configuracion_sistema (
+        id SERIAL PRIMARY KEY,
+        tiempo_limite_minutos INTEGER DEFAULT 120,
+        alerta_minutos_agregados INTEGER DEFAULT 0,
+        alerta_version INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     await pool.query(`
@@ -137,7 +144,12 @@ async function seedProduction() {
     const adminRes = await pool.query("SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1");
     const adminId = adminRes.rows[0]?.id || null;
 
-    const casosDir = path.resolve(__dirname, '../casos');
+    const candidateDirs = [
+      path.resolve(__dirname, './public/casos'),
+      path.resolve(__dirname, '../public/casos'),
+      path.resolve(__dirname, '../casos')
+    ];
+    const casosDir = candidateDirs.find((d) => fs.existsSync(d)) || candidateDirs[0];
     let insertedCases = 0;
     let updatedCases = 0;
 
