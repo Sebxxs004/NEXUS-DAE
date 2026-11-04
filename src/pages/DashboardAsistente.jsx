@@ -1907,6 +1907,152 @@ export default function DashboardAsistente({ token, usuario }) {
                 </button>
               </div>
             </div>
+
+            {/* =========================================================================
+                FASE 3: IDENTIFICACIÓN DE PROCESOS POR VÍAS ALTERNAS (DEBAJO DE FASE 2)
+               ========================================================================= */}
+            <div className="mt-8 rounded-2xl border border-emerald-500/40 bg-slate-950/90 p-6 shadow-[0_0_30px_rgba(16,185,129,0.12)] backdrop-blur-md space-y-5">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="rounded-md bg-emerald-500/20 border border-emerald-400/50 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-300 uppercase">
+                      Fase 3
+                    </span>
+                    <h2 className="font-mono text-base md:text-lg font-bold text-emerald-200 tracking-wide">
+                      • Identificación de procesos por vías alternas a la justicia ordinaria / justicia restaurativa
+                    </h2>
+                    <span
+                      className={`rounded-full border px-2.5 py-0.5 font-mono text-xs font-bold ${
+                        casosViaAlterna.length >= 3
+                          ? 'bg-emerald-950 border-emerald-500/50 text-emerald-300'
+                          : 'bg-amber-950 border-amber-500/50 text-amber-300'
+                      }`}
+                    >
+                      {casosViaAlterna.length} / 3 mínimo marcados
+                    </span>
+                  </div>
+                  <p className="text-xs md:text-sm text-slate-200 leading-relaxed max-w-4xl">
+                    En la presente fase deberá identificar por lo menos tres (3) casos de los que ya conoce en su despacho que considere que se pueden resolver por alguna vía alterna a la justicia ordinaria o mediante mecanismos de justicia restaurativa y presentar su propuesta con la respectiva justificación.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/60 bg-emerald-500/15 hover:bg-emerald-500/25 px-4 py-2.5 font-mono text-xs font-bold text-emerald-200 transition shadow-lg shrink-0 cursor-pointer"
+                >
+                  <span>↑ Regresar arriba a los expedientes para leer y marcar</span>
+                </button>
+              </div>
+
+              {/* Instrucción clara de cómo marcar los expedientes arriba */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="font-mono text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                    💡 ¿Cómo agregar casos a esta Fase 3?
+                  </p>
+                  <p className="font-mono text-xs text-slate-300 leading-relaxed">
+                    Regrese arriba a la bandeja de noticias criminales del despacho, haga clic en un expediente para abrirlo en pantalla completa y pulse el botón{' '}
+                    <span className="text-emerald-300 font-bold">&quot;⚖️ Marcar por Vía Alterna (Fase 3)&quot;</span> ubicado debajo de los controles de zoom. A medida que vaya marcando y argumentando cada caso, irán apareciendo y llenándose automáticamente en este recuadro.
+                  </p>
+                </div>
+              </div>
+
+              {/* Listado dinámico que crece conforme se van marcando y argumentando los casos */}
+              {casosViaAlterna.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center space-y-3">
+                  <p className="font-mono text-sm font-bold text-slate-300">
+                    Aún no has marcado ningún expediente como solución por vía alterna.
+                  </p>
+                  <p className="font-mono text-xs text-slate-400 max-w-xl mx-auto">
+                    Sube a las noticias criminales del despacho, revisa los folios en pantalla completa y marca al menos tres (3) casos con su respectiva vía alterna y justificación para que se listen aquí.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="mt-2 inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 px-4 py-2 font-mono text-xs font-bold text-cyan-300 transition"
+                  >
+                    ↑ Ir a revisar los expedientes del despacho
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-emerald-300">
+                      ⚖️ Casos marcados y argumentados por Vía Alterna ({casosViaAlterna.length}):
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Se incluirán automáticamente en la Sección 3 de tu Informe PDF
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {casosViaAlterna.map((item, idx) => (
+                      <div
+                        key={item.caseId}
+                        className="rounded-xl border border-emerald-500/35 bg-slate-900/80 p-4 flex flex-col justify-between gap-3 shadow-md hover:border-emerald-400/60 transition"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="rounded bg-emerald-500/20 border border-emerald-400/50 px-2 py-0.5 font-mono text-[11px] font-black text-emerald-300 shrink-0">
+                                Caso #{idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="font-mono text-xs font-bold text-slate-100 truncate">
+                                  Radicado: {item.radicado}
+                                </p>
+                                <p className="font-mono text-[10px] text-amber-300 uppercase truncate">
+                                  Delito: {item.delito}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const c = carpetas.find((carp) => carp.id === item.caseId);
+                                  if (c) {
+                                    handleOpenDetailModal(c);
+                                    setViaAlternaSeleccionada(item.viaAlterna || '');
+                                    setViaAlternaJustificacion(item.justificacion || '');
+                                    setShowViaAlternaModal(true);
+                                  }
+                                }}
+                                className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan-300 transition"
+                              >
+                                ✎ Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarViaAlternaCaso(item.caseId)}
+                                className="rounded-lg border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-2 py-1 font-mono text-[10px] font-bold text-red-300 transition"
+                                title="Retirar de Fase 3"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-emerald-950/30 border border-emerald-500/30 px-3 py-2 font-mono text-xs">
+                            <span className="text-emerald-400 font-bold">Vía Alterna Seleccionada: </span>
+                            <span className="text-emerald-100 font-semibold">{item.viaAlterna}</span>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-950/80 border border-slate-800 p-3 font-mono text-xs">
+                            <span className="text-slate-400 font-bold block mb-1">Argumentación / Justificación:</span>
+                            <p className="text-slate-200 whitespace-pre-wrap leading-relaxed">
+                              {item.justificacion}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* COLUMNA DERECHA: PROPUESTAS DE ASOCIACIÓN (FASE 1) + ACTIVIDADES DEL DESPACHO */}
