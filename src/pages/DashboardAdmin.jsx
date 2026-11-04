@@ -97,6 +97,10 @@ function DashboardAdmin() {
   const [viewerDocumentos, setViewerDocumentos] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [connectionSourceCase, setConnectionSourceCase] = useState(null);
@@ -631,6 +635,9 @@ function DashboardAdmin() {
     setViewerLoading(true);
     setCaseViewData(carpeta);
     setSelectedDocument(null);
+    setZoomScale(1);
+    setPanOffset({ x: 0, y: 0 });
+    setIsPanning(false);
     try {
       const response = await axios.get(`${API_URL}/documentos/carpeta/${carpeta.id}`, {
         headers: authHeaders,
@@ -996,8 +1003,87 @@ function DashboardAdmin() {
               <div className="mb-4" />
 
               {caseViewData.imagen_url && (
-                <div className="mb-6 rounded-lg border border-cyan-500/20 bg-slate-950/50 p-4">
-                  <img src={caseViewData.imagen_url} alt={caseViewData.nombre} className="h-64 w-full rounded-lg object-cover" />
+                <div className="mb-6 rounded-xl border border-cyan-500/30 bg-slate-950/90 p-3 relative overflow-hidden">
+                  <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                    <span className="font-mono text-xs text-slate-400">
+                      {zoomScale > 1
+                        ? '🖱️ Arrastra la imagen para desplazarte por el folio'
+                        : '🔍 Vista completa del folio (usa los botones o la rueda del ratón para hacer zoom)'}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setZoomScale((prev) => Math.min(prev + 0.25, 4))}
+                        className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 p-1.5 text-cyan-300 transition"
+                        title="Acercar (+)"
+                      >
+                        <FiPlus size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoomScale((prev) => {
+                            const next = Math.max(prev - 0.25, 1);
+                            if (next === 1) setPanOffset({ x: 0, y: 0 });
+                            return next;
+                          })
+                        }
+                        className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 p-1.5 text-cyan-300 transition"
+                        title="Alejar (-)"
+                      >
+                        <FiMinus size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoomScale(1);
+                          setPanOffset({ x: 0, y: 0 });
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2 py-1 font-mono text-xs font-bold text-cyan-300 transition"
+                        title="Restablecer tamaño (1:1)"
+                      >
+                        1:1
+                      </button>
+                      <span className="font-mono text-xs font-bold text-slate-300 px-1.5">
+                        {Math.round(zoomScale * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    onMouseDown={(e) => {
+                      if (zoomScale <= 1) return;
+                      setIsPanning(true);
+                      setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isPanning) return;
+                      setPanOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+                    }}
+                    onMouseUp={() => setIsPanning(false)}
+                    onMouseLeave={() => setIsPanning(false)}
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+                      setZoomScale((prev) => {
+                        const next = Math.min(Math.max(prev + delta, 1), 4);
+                        if (next === 1) setPanOffset({ x: 0, y: 0 });
+                        return next;
+                      });
+                    }}
+                    className="flex items-center justify-center overflow-hidden rounded-lg bg-slate-950 select-none min-h-[420px]"
+                  >
+                    <img
+                      src={caseViewData.imagen_url}
+                      alt={caseViewData.nombre}
+                      draggable={false}
+                      className="max-h-[76vh] w-full rounded-lg object-contain transition-transform duration-75 origin-center"
+                      style={{
+                        transform: `scale(${zoomScale}) translate(${panOffset.x / zoomScale}px, ${panOffset.y / zoomScale}px)`,
+                        cursor: zoomScale > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
