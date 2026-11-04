@@ -2093,21 +2093,8 @@ export default function DashboardAsistente({ token, usuario }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-amber-300 uppercase tracking-wider mb-1.5 font-mono">
-                  2. Sugerencia de actuación desde su rol de Asistente:
-                </label>
-                <input
-                  type="text"
-                  value={sugerenciaActuacion}
-                  onChange={(e) => setSugerenciaActuacion(e.target.value)}
-                  placeholder="Ej: Sugerir al Fiscal conexidad procesal y proyectar orden conjunta a Policía Judicial..."
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-400 font-mono transition-all"
-                />
-              </div>
-
-              <div>
                 <label className="block text-xs font-semibold text-cyan-300 uppercase tracking-wider mb-1.5 font-mono">
-                  3. Justificación de la propuesta de asociación:
+                  2. Justificación de la propuesta de asociación:
                 </label>
                 <textarea
                   value={justificacionText}
