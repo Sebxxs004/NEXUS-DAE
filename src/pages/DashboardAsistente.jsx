@@ -478,83 +478,6 @@ export default function DashboardAsistente({ token, usuario }) {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // Estados de Fase 3: Identificación de procesos por vías alternas a la justicia ordinaria / justicia restaurativa
-  const OPCIONES_VIA_ALTERNA_FASE3 = useMemo(
-    () => [
-      '1. El Principio de Oportunidad',
-      '2. Los Preacuerdos y Negociaciones',
-      '3. El Allanamiento a Cargos',
-      '4. La Conciliación Preprocesal y en el Incidente de Reparación Integral',
-      '5. La Preclusión'
-    ],
-    []
-  );
-
-  const [casosViaAlterna, setCasosViaAlterna] = useState(() => {
-    try {
-      const raw = localStorage.getItem(`nexus_fase3_vias_alternas_${usuario?.id}`);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [showViaAlternaModal, setShowViaAlternaModal] = useState(false);
-  const [viaAlternaOpcion, setViaAlternaOpcion] = useState('');
-  const [viaAlternaJustificacion, setViaAlternaJustificacion] = useState('');
-
-  const handleAbrirViaAlternaModal = (caseObj) => {
-    if (!caseObj) return;
-    const existing = casosViaAlterna.find((item) => item.caseId === caseObj.id);
-    setViaAlternaOpcion(existing ? existing.viaAlterna : OPCIONES_VIA_ALTERNA_FASE3[0]);
-    setViaAlternaJustificacion(existing ? existing.justificacion : '');
-    setShowViaAlternaModal(true);
-  };
-
-  const handleGuardarViaAlternaCaso = () => {
-    if (!detailCase) return;
-    if (!viaAlternaOpcion) {
-      alert('Por favor seleccione una de las 5 vías alternas.');
-      return;
-    }
-    if (!viaAlternaJustificacion.trim()) {
-      alert('Por favor ingrese la justificación de por qué este proceso puede resolverse por esta vía alterna.');
-      return;
-    }
-
-    const radicado = detailCase.nombre ? detailCase.nombre.replace('Caso ', '') : String(detailCase.id);
-    const nuevoRegistro = {
-      caseId: detailCase.id,
-      radicado,
-      delito: detailCase.tipo_delito || 'DELITO NO ESPECIFICADO',
-      viaAlterna: viaAlternaOpcion,
-      justificacion: viaAlternaJustificacion.trim(),
-      updatedAt: new Date().toISOString()
-    };
-
-    const updated = [
-      ...casosViaAlterna.filter((item) => item.caseId !== detailCase.id),
-      nuevoRegistro
-    ];
-    setCasosViaAlterna(updated);
-    try {
-      localStorage.setItem(`nexus_fase3_vias_alternas_${usuario?.id}`, JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error guardando Fase 3:', e);
-    }
-    setShowViaAlternaModal(false);
-  };
-
-  const handleEliminarViaAlternaCaso = (caseId) => {
-    const updated = casosViaAlterna.filter((item) => item.caseId !== caseId);
-    setCasosViaAlterna(updated);
-    try {
-      localStorage.setItem(`nexus_fase3_vias_alternas_${usuario?.id}`, JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error eliminando caso de Fase 3:', e);
-    }
-    setShowViaAlternaModal(false);
-  };
-
   // Notificación flotante de alerta delegada
   const [notificacionDelegada, setNotificacionDelegada] = useState(null);
   const seenDelegatedIdsRef = useRef(new Set());
@@ -1118,13 +1041,11 @@ export default function DashboardAsistente({ token, usuario }) {
 
   const handleOpenDetailModal = (caseItem) => {
     setDetailCase(caseItem);
-    setShowViaAlternaModal(false);
     handleResetZoom();
   };
 
   const handleCloseDetailModal = () => {
     setDetailCase(null);
-    setShowViaAlternaModal(false);
     handleResetZoom();
   };
 
@@ -1283,38 +1204,19 @@ export default function DashboardAsistente({ token, usuario }) {
     }
     y += 4;
 
-    // SECCIÓN 3: FASE 3 - PROCESOS IDENTIFICADOS PARA VÍAS ALTERNAS A LA JUSTICIA ORDINARIA
-    writeLine('3. FASE 3: PROCESOS IDENTIFICADOS PARA VÍAS ALTERNAS / JUSTICIA RESTAURATIVA', 12, [15, 23, 42], 'bold');
-    y += 1;
-    if (casosViaAlterna.length === 0) {
-      writeLine('No se identificaron casos para vías alternas a la justicia ordinaria durante la sesión.', 10, [100, 116, 139]);
-    } else {
-      casosViaAlterna.forEach((item, idx) => {
-        if (y > 250) {
-          doc.addPage();
-          y = 20;
-        }
-        writeLine(`${idx + 1}. Radicado: ${item.radicado} — Delito: ${item.delito}`, 11, [16, 185, 129], 'bold');
-        writeLine(`   Vía alterna seleccionada: ${item.viaAlterna}`, 10, [30, 58, 138], 'bold');
-        writeLine(`   Justificación técnica: ${item.justificacion}`, 10, [51, 65, 85]);
-        y += 2;
-      });
-    }
-    y += 4;
-
     const totalActividades = actividades.length;
     const atendidas = actividades.filter((a) => a.estado === 'REALIZADA' || a.estado === 'RESUELTA').length;
     const ignoradas = actividades.filter((a) => a.estado === 'IGNORADA').length;
     const pendientes = actividades.filter((a) => a.estado === 'PENDIENTE').length;
 
-    writeLine('4. BALANCE DE GESTIÓN Y ALERTAS DEL DESPACHO', 12, [15, 23, 42], 'bold');
+    writeLine('3. BALANCE DE GESTIÓN Y ALERTAS DEL DESPACHO', 12, [15, 23, 42], 'bold');
     writeLine(`Total de actividades recibidas: ${totalActividades}`);
     writeLine(`Actividades atendidas / tramitadas: ${atendidas}`);
     writeLine(`Actividades ignoradas / descartadas: ${ignoradas}`);
     writeLine(`Actividades pendientes por resolver: ${pendientes}`);
     y += 5;
 
-    writeLine('5. REGISTRO DETALLADO DE ACTUACIONES Y JUSTIFICACIONES', 12, [15, 23, 42], 'bold');
+    writeLine('4. REGISTRO DETALLADO DE ACTUACIONES Y JUSTIFICACIONES', 12, [15, 23, 42], 'bold');
     y += 2;
 
     actividades.forEach((act, idx) => {
@@ -1636,16 +1538,11 @@ export default function DashboardAsistente({ token, usuario }) {
                           />
                         </div>
 
-                        {/* Insignia de Propuesta (Fase 1) o Vía Alterna (Fase 3) */}
+                        {/* Insignia de Propuesta (Fase 1) */}
                         <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1">
                           {cardGroup && (
                             <span className="rounded-md bg-cyan-950/95 border border-cyan-400 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan-300 backdrop-blur-sm shadow-md">
                               {cardGroup.name}
-                            </span>
-                          )}
-                          {casosViaAlterna.some((v) => v.caseId === caseItem.id) && (
-                            <span className="rounded-md bg-emerald-950/95 border border-emerald-400 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300 backdrop-blur-sm shadow-md">
-                              ⚖️ Vía Alterna (Fase 3)
                             </span>
                           )}
                         </div>
@@ -1907,152 +1804,6 @@ export default function DashboardAsistente({ token, usuario }) {
                 </button>
               </div>
             </div>
-
-            {/* =========================================================================
-                FASE 3: IDENTIFICACIÓN DE PROCESOS POR VÍAS ALTERNAS (DEBAJO DE FASE 2)
-               ========================================================================= */}
-            <div className="mt-8 rounded-2xl border border-emerald-500/40 bg-slate-950/90 p-6 shadow-[0_0_30px_rgba(16,185,129,0.12)] backdrop-blur-md space-y-5">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="rounded-md bg-emerald-500/20 border border-emerald-400/50 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-300 uppercase">
-                      Fase 3
-                    </span>
-                    <h2 className="font-mono text-base md:text-lg font-bold text-emerald-200 tracking-wide">
-                      • Identificación de procesos por vías alternas a la justicia ordinaria / justicia restaurativa
-                    </h2>
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 font-mono text-xs font-bold ${
-                        casosViaAlterna.length >= 3
-                          ? 'bg-emerald-950 border-emerald-500/50 text-emerald-300'
-                          : 'bg-amber-950 border-amber-500/50 text-amber-300'
-                      }`}
-                    >
-                      {casosViaAlterna.length} / 3 mínimo marcados
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-slate-200 leading-relaxed max-w-4xl">
-                    En la presente fase deberá identificar por lo menos tres (3) casos de los que ya conoce en su despacho que considere que se pueden resolver por alguna vía alterna a la justicia ordinaria o mediante mecanismos de justicia restaurativa y presentar su propuesta con la respectiva justificación.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/60 bg-emerald-500/15 hover:bg-emerald-500/25 px-4 py-2.5 font-mono text-xs font-bold text-emerald-200 transition shadow-lg shrink-0 cursor-pointer"
-                >
-                  <span>↑ Regresar arriba a los expedientes para leer y marcar</span>
-                </button>
-              </div>
-
-              {/* Instrucción clara de cómo marcar los expedientes arriba */}
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="font-mono text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                    💡 ¿Cómo agregar casos a esta Fase 3?
-                  </p>
-                  <p className="font-mono text-xs text-slate-300 leading-relaxed">
-                    Regrese arriba a la bandeja de noticias criminales del despacho, haga clic en un expediente para abrirlo en pantalla completa y pulse el botón{' '}
-                    <span className="text-emerald-300 font-bold">&quot;⚖️ Marcar por Vía Alterna (Fase 3)&quot;</span> ubicado debajo de los controles de zoom. A medida que vaya marcando y argumentando cada caso, irán apareciendo y llenándose automáticamente en este recuadro.
-                  </p>
-                </div>
-              </div>
-
-              {/* Listado dinámico que crece conforme se van marcando y argumentando los casos */}
-              {casosViaAlterna.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center space-y-3">
-                  <p className="font-mono text-sm font-bold text-slate-300">
-                    Aún no has marcado ningún expediente como solución por vía alterna.
-                  </p>
-                  <p className="font-mono text-xs text-slate-400 max-w-xl mx-auto">
-                    Sube a las noticias criminales del despacho, revisa los folios en pantalla completa y marca al menos tres (3) casos con su respectiva vía alterna y justificación para que se listen aquí.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="mt-2 inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 px-4 py-2 font-mono text-xs font-bold text-cyan-300 transition"
-                  >
-                    ↑ Ir a revisar los expedientes del despacho
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-emerald-300">
-                      ⚖️ Casos marcados y argumentados por Vía Alterna ({casosViaAlterna.length}):
-                    </span>
-                    <span className="font-mono text-[11px] text-slate-400">
-                      Se incluirán automáticamente en la Sección 3 de tu Informe PDF
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {casosViaAlterna.map((item, idx) => (
-                      <div
-                        key={item.caseId}
-                        className="rounded-xl border border-emerald-500/35 bg-slate-900/80 p-4 flex flex-col justify-between gap-3 shadow-md hover:border-emerald-400/60 transition"
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="rounded bg-emerald-500/20 border border-emerald-400/50 px-2 py-0.5 font-mono text-[11px] font-black text-emerald-300 shrink-0">
-                                Caso #{idx + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="font-mono text-xs font-bold text-slate-100 truncate">
-                                  Radicado: {item.radicado}
-                                </p>
-                                <p className="font-mono text-[10px] text-amber-300 uppercase truncate">
-                                  Delito: {item.delito}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const c = carpetas.find((carp) => carp.id === item.caseId);
-                                  if (c) {
-                                    handleOpenDetailModal(c);
-                                    setViaAlternaSeleccionada(item.viaAlterna || '');
-                                    setViaAlternaJustificacion(item.justificacion || '');
-                                    setShowViaAlternaModal(true);
-                                  }
-                                }}
-                                className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan-300 transition"
-                              >
-                                ✎ Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEliminarViaAlternaCaso(item.caseId)}
-                                className="rounded-lg border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-2 py-1 font-mono text-[10px] font-bold text-red-300 transition"
-                                title="Retirar de Fase 3"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg bg-emerald-950/30 border border-emerald-500/30 px-3 py-2 font-mono text-xs">
-                            <span className="text-emerald-400 font-bold">Vía Alterna Seleccionada: </span>
-                            <span className="text-emerald-100 font-semibold">{item.viaAlterna}</span>
-                          </div>
-
-                          <div className="rounded-lg bg-slate-950/80 border border-slate-800 p-3 font-mono text-xs">
-                            <span className="text-slate-400 font-bold block mb-1">Argumentación / Justificación:</span>
-                            <p className="text-slate-200 whitespace-pre-wrap leading-relaxed">
-                              {item.justificacion}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* COLUMNA DERECHA: PROPUESTAS DE ASOCIACIÓN (FASE 1) + ACTIVIDADES DEL DESPACHO */}
@@ -2205,66 +1956,7 @@ export default function DashboardAsistente({ token, usuario }) {
               )}
             </div>
 
-            {/* PANEL 2: FASE 3 - PROCESOS IDENTIFICADOS POR VÍAS ALTERNAS / JUSTICIA RESTAURATIVA */}
-            <div className="bg-slate-950/85 p-5 rounded-2xl border border-emerald-500/30 backdrop-blur-md shadow-2xl flex flex-col space-y-3 max-h-[38vh] overflow-y-auto">
-              <div className="border-b border-slate-800 pb-2.5 flex items-center justify-between">
-                <div>
-                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-2">
-                    <FiTarget size={14} className="text-emerald-400" />
-                    Vías Alternas (Fase 3)
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                    Mínimo 3 casos (Justicia Restaurativa / Alternas)
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold border ${
-                    casosViaAlterna.length >= 3
-                      ? 'bg-emerald-950 border-emerald-400/60 text-emerald-300'
-                      : 'bg-amber-950 border-amber-500/50 text-amber-300'
-                  }`}
-                >
-                  {casosViaAlterna.length} / 3 mín.
-                </span>
-              </div>
-
-              {casosViaAlterna.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-500 font-mono leading-relaxed">
-                  Aún no has marcado procesos. Abre cualquier expediente (&quot;Ver detalles&quot;) y usa el botón debajo del zoom para marcarlo por vía alterna.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {casosViaAlterna.map((item) => (
-                    <div
-                      key={item.caseId}
-                      className="rounded-xl border border-emerald-500/30 bg-slate-900/60 p-2.5 font-mono text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-emerald-300 truncate">
-                          Rad: {item.radicado}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleEliminarViaAlternaCaso(item.caseId)}
-                          title="Quitar de vías alternas"
-                          className="p-0.5 text-slate-400 hover:text-red-400 transition"
-                        >
-                          <FiX size={13} />
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-cyan-300 font-semibold leading-snug">
-                        {item.viaAlterna}
-                      </p>
-                      <p className="text-[10px] text-slate-300 line-clamp-2 leading-relaxed">
-                        {item.justificacion}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* PANEL 3: ACTIVIDADES Y ÓRDENES A SU CARGO */}
+            {/* PANEL 2: ACTIVIDADES Y ÓRDENES A SU CARGO */}
             <div className="bg-slate-950/85 p-5 rounded-2xl border border-cyan-500/30 backdrop-blur-md shadow-2xl flex flex-col space-y-4 max-h-[52vh] overflow-hidden">
               <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                 <div>
@@ -2479,7 +2171,7 @@ export default function DashboardAsistente({ token, usuario }) {
 
             {/* Modal Body: Controles flotantes + Área de zoom & pan */}
             <div className="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
-              {/* Controles Flotantes de Zoom + Botón Fase 3 (Vía Alterna) debajo del Zoom */}
+              {/* Controles Flotantes de Zoom */}
               <div className="absolute top-4 left-4 z-20 flex flex-col items-start gap-2.5">
                 <div className="flex items-center gap-1.5 rounded-xl bg-slate-900/90 p-1.5 border border-slate-700/80 backdrop-blur-md shadow-2xl">
                   <button
@@ -2510,130 +2202,6 @@ export default function DashboardAsistente({ token, usuario }) {
                     {Math.round(zoomScale * 100)}%
                   </span>
                 </div>
-
-                {/* Botón debajo del zoom para marcar como resuelto por vía alterna (Fase 3) */}
-                {(() => {
-                  const registroActual = casosViaAlterna.find((item) => item.caseId === detailCase.id);
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleAbrirViaAlternaModal(detailCase)}
-                      className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-mono text-xs font-bold shadow-2xl backdrop-blur-md transition-all active:scale-95 ${
-                        registroActual
-                          ? 'border-2 border-emerald-400 bg-emerald-950/90 text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:bg-emerald-900/90'
-                          : 'border border-emerald-500/60 bg-slate-900/95 text-emerald-300 hover:bg-emerald-950/80 hover:border-emerald-400'
-                      }`}
-                    >
-                      <FiTarget size={15} className="text-emerald-400 shrink-0" />
-                      <span>
-                        {registroActual
-                          ? `✅ Vía Alterna: ${registroActual.viaAlterna} (Editar)`
-                          : '⚖️ Marcar por Vía Alterna (Fase 3)'}
-                      </span>
-                    </button>
-                  );
-                })()}
-
-                {/* Ventana emergente para elegir una de las 5 opciones de Vía Alterna y justificar */}
-                {showViaAlternaModal && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-[92vw] max-w-lg rounded-2xl border-2 border-emerald-500/60 bg-slate-900/98 p-5 shadow-[0_0_50px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 animate-welcome-zoom"
-                  >
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
-                      <div>
-                        <span className="rounded bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300 uppercase">
-                          Fase 3 • Vías Alternas a la Justicia Ordinaria
-                        </span>
-                        <h4 className="font-mono text-sm font-bold text-slate-100 mt-1.5">
-                          Expediente {detailCase.nombre.replace('Caso ', '')}
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowViaAlternaModal(false)}
-                        className="text-slate-400 hover:text-white p-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block font-mono text-xs font-bold uppercase tracking-wider text-emerald-300">
-                        Seleccione la vía alterna aplicable:
-                      </label>
-                      <div className="space-y-2">
-                        {OPCIONES_VIA_ALTERNA_FASE3.map((opcion) => {
-                          const isSelected = viaAlternaOpcion === opcion;
-                          return (
-                            <button
-                              key={opcion}
-                              type="button"
-                              onClick={() => setViaAlternaOpcion(opcion)}
-                              className={`w-full text-left rounded-xl border px-3.5 py-2.5 font-mono text-xs transition-all flex items-center gap-2.5 ${
-                                isSelected
-                                  ? 'border-emerald-400 bg-emerald-950/80 text-emerald-100 font-bold shadow-[0_0_15px_rgba(16,185,129,0.25)]'
-                                  : 'border-slate-800 bg-slate-950/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-                              }`}
-                            >
-                              <span
-                                className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                                  isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-slate-600'
-                                }`}
-                              >
-                                {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />}
-                              </span>
-                              <span>{opcion}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block font-mono text-xs font-bold uppercase tracking-wider text-amber-300">
-                        Justificación de la vía alterna seleccionada:
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={viaAlternaJustificacion}
-                        onChange={(e) => setViaAlternaJustificacion(e.target.value)}
-                        placeholder="Justifique por qué este caso puede ser resuelto mediante la vía alterna seleccionada (caracterización de la víctima, indiciado y hechos)..."
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-400 font-mono resize-none leading-relaxed"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
-                      {casosViaAlterna.some((item) => item.caseId === detailCase.id) ? (
-                        <button
-                          type="button"
-                          onClick={() => handleEliminarViaAlternaCaso(detailCase.id)}
-                          className="rounded-lg border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 font-mono text-xs font-bold text-red-300 transition"
-                        >
-                          Quitar marca
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowViaAlternaModal(false)}
-                          className="rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-700 px-4 py-2 font-mono text-xs font-bold text-slate-300 transition"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleGuardarViaAlternaCaso}
-                          className="rounded-lg border border-emerald-400/50 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 font-mono text-xs font-bold text-white shadow-lg transition"
-                        >
-                          Guardar Vía Alterna
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Visor Interactivo Pan & Drag */}
@@ -3368,8 +2936,7 @@ export default function DashboardAsistente({ token, usuario }) {
                       {[
                         'Analizar noticias criminales.',
                         'Gestionar el cumplimiento de órdenes a su cargo.',
-                        'Atender víctimas y peticionarios.',
-                        'Identificar procesos en el marco de la justicia restaurativa.'
+                        'Atender víctimas y peticionarios.'
                       ].map((item, idx) => (
                         <div
                           key={idx}
@@ -3426,21 +2993,6 @@ export default function DashboardAsistente({ token, usuario }) {
                           Deberá revisar la totalidad de órdenes a su cargo, en el marco del cumplimiento de las funciones transitorias como policía judicial, y presentar la propuesta de priorización para la ejecución de las mismas con su respectiva justificación.
                         </p>
                       </div>
-
-                      {/* Fase 3 */}
-                      <div className="rounded-xl border border-emerald-500/40 bg-slate-950/70 p-5 shadow-lg transition-all duration-300 hover:border-emerald-400">
-                        <div className="flex items-center gap-2.5 mb-2">
-                          <span className="rounded-md bg-emerald-500/20 border border-emerald-400/40 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-300 uppercase">
-                            Fase 3
-                          </span>
-                          <h3 className="font-mono text-base font-bold text-emerald-200">
-                            Identificación de procesos que pueden ser resueltos por vías alternas a la justicia ordinaria
-                          </h3>
-                        </div>
-                        <p className="text-sm text-slate-200 leading-relaxed">
-                          Producto de análisis de la carga del Despacho (61 casos) y de la caracterización de las víctimas y de la identificación de los indiciados identifique al menos 3 casos que pueden ser resueltos por vías de la justicia restaurativa con su respectiva justificación.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -3459,16 +3011,14 @@ export default function DashboardAsistente({ token, usuario }) {
                     </div>
 
                     <div className="rounded-lg border border-cyan-500/30 bg-slate-950/60 p-4 text-base text-slate-100 font-medium leading-relaxed animate-stagger-2">
-                      Lograr un apoyo técnico-jurídico eficaz en el Despacho mediante propuestas de asociación fundamentadas, priorización oportuna de órdenes y aplicación de justicia restaurativa.
+                      Lograr un apoyo técnico-jurídico eficaz en el Despacho mediante propuestas de asociación fundamentadas y priorización oportuna de órdenes.
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-stagger-3">
+                    <div className="grid gap-4 sm:grid-cols-2 animate-stagger-3">
                       {[
                         { title: 'Análisis de Patrones', icon: <FiLink size={20} className="text-cyan-400" /> },
                         { title: 'Priorización de Órdenes', icon: <FiZap size={20} className="text-cyan-400" /> },
-                        { title: 'Justicia Restaurativa', icon: <FiTarget size={20} className="text-cyan-400" /> },
                         { title: 'Atención a Usuarios y Víctimas', icon: <FiUsers size={20} className="text-cyan-400" /> },
-                        { title: 'Funciones de Policía Judicial', icon: <FiShield size={20} className="text-cyan-400" /> },
                         { title: 'Argumentación y Justificación', icon: <FiTrendingUp size={20} className="text-cyan-400" /> }
                       ].map((item, idx) => (
                         <div
