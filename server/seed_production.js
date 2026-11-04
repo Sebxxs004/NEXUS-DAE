@@ -190,6 +190,9 @@ async function seedProduction() {
       }
     }
 
+    // Eliminar imagen de alerta que se había colado como noticia criminal (5400160000020260002)
+    await pool.query("DELETE FROM carpetas WHERE nombre = 'Caso 5400160000020260002'");
+
     console.log(`[SEED] Expedientes: ${insertedCases} insertados, ${updatedCases} actualizados.`);
     const totalCasesRes = await pool.query('SELECT count(*) FROM carpetas');
     console.log(`[SEED] Total carpetas en base de datos: ${totalCasesRes.rows[0].count}`);
