@@ -313,49 +313,81 @@ export default function DashboardAsistente({ token, usuario }) {
   const ORDENES_PJ_FASE2 = useMemo(() => [
     {
       id: 'OPJ-12881112',
+      indice: 1,
       numero: '12881112',
       titulo: 'Orden Policía Judicial No. 12881112 - Contratación',
       archivo: 'OrdenPoliciaJudicial_12881112 CONTRATACION.pdf'
     },
     {
       id: 'OPJ-12881113',
+      indice: 2,
       numero: '12881113',
       titulo: 'Orden Policía Judicial No. 12881113 - Servidor Público',
       archivo: 'OrdenPoliciaJudicial_12881113 Servidor Público.pdf'
     },
     {
       id: 'OPJ-12881114',
+      indice: 3,
       numero: '12881114',
       titulo: 'Orden Policía Judicial No. 12881114',
       archivo: 'OrdenPoliciaJudicial_12881114.pdf'
     },
     {
       id: 'OPJ-12881115',
+      indice: 4,
       numero: '12881115',
       titulo: 'Orden Policía Judicial No. 12881115 - Violencia Intrafamiliar',
       archivo: 'OrdenPoliciaJudicial_12881115 V INTRA.pdf'
     },
     {
       id: 'OPJ-12881116',
+      indice: 5,
       numero: '12881116',
       titulo: 'Orden Policía Judicial No. 12881116 - Concusión 02',
       archivo: 'OrdenPoliciaJudicial_12881116 concusión 02.pdf'
     },
     {
       id: 'OPJ-12881118',
+      indice: 6,
       numero: '12881118',
       titulo: 'Orden Policía Judicial No. 12881118 - Hurto 201',
       archivo: 'OrdenPoliciaJudicial_12881118 HURTO 201.pdf'
     },
     {
       id: 'OPJ-12881119',
+      indice: 7,
       numero: '12881119',
       titulo: 'Orden Policía Judicial No. 12881119 - Tráfico de Influencias',
       archivo: 'OrdenPoliciaJudicial_12881119 TRAFICO INCLUENCIAS.pdf'
     }
   ], []);
 
+  const formatOrdenPrioridadTexto = (orderedList) =>
+    orderedList
+      .map((item, pos) => `${pos + 1}° Prioridad: Orden #${item.indice} (${item.titulo})`)
+      .join(', ');
+
   const [mostrarListaOrdenesPj, setMostrarListaOrdenesPj] = useState(true);
+  const [ordenPriorizadaList, setOrdenPriorizadaList] = useState(() => {
+    try {
+      const savedIds = localStorage.getItem(`nexus_fase2_orden_ids_${usuario?.id}`);
+      if (savedIds) {
+        const parsedIds = JSON.parse(savedIds);
+        if (Array.isArray(parsedIds) && parsedIds.length === 7) {
+          const mapped = parsedIds
+            .map((id) => ORDENES_PJ_FASE2.find((o) => o.id === id))
+            .filter(Boolean);
+          if (mapped.length === 7) return mapped;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return ORDENES_PJ_FASE2;
+  });
+  const [draggedOrdenIdx, setDraggedOrdenIdx] = useState(null);
+  const [dragOverOrdenIdx, setDragOverOrdenIdx] = useState(null);
+
   const [propuestaPriorizacionOrdenes, setPropuestaPriorizacionOrdenes] = useState(() => {
     try {
       return localStorage.getItem(`nexus_fase2_priorizacion_${usuario?.id}`) || '';
@@ -372,6 +404,22 @@ export default function DashboardAsistente({ token, usuario }) {
   });
   const [priorizacionGuardadaMsg, setPriorizacionGuardadaMsg] = useState(false);
 
+  // Mantener sincronizado el texto de priorización separado por comas según el orden de los 7 rectángulos
+  useEffect(() => {
+    const textoGenerado = formatOrdenPrioridadTexto(ordenPriorizadaList);
+    setPropuestaPriorizacionOrdenes(textoGenerado);
+  }, [ordenPriorizadaList]);
+
+  const handleMoveOrdenPrioridad = (fromIdx, toIdx) => {
+    if (toIdx < 0 || toIdx >= ordenPriorizadaList.length || fromIdx === toIdx) return;
+    setOrdenPriorizadaList((prev) => {
+      const copy = [...prev];
+      const [moved] = copy.splice(fromIdx, 1);
+      copy.splice(toIdx, 0, moved);
+      return copy;
+    });
+  };
+
   const handleDescargarTodasLasOrdenes = () => {
     setMostrarListaOrdenesPj(true);
     ORDENES_PJ_FASE2.forEach((orden, index) => {
@@ -387,12 +435,18 @@ export default function DashboardAsistente({ token, usuario }) {
   };
 
   const handleGuardarFase2Priorizacion = () => {
-    if (!propuestaPriorizacionOrdenes.trim() || !justificacionPriorizacionOrdenes.trim()) {
-      alert('Por favor diligencie tanto la propuesta de priorización de las 7 órdenes como su respectiva justificación.');
+    if (!justificacionPriorizacionOrdenes.trim()) {
+      alert('Por favor diligencie la justificación de su propuesta de priorización.');
       return;
     }
+    const textoFinalPriorizacion = formatOrdenPrioridadTexto(ordenPriorizadaList);
+    setPropuestaPriorizacionOrdenes(textoFinalPriorizacion);
     try {
-      localStorage.setItem(`nexus_fase2_priorizacion_${usuario?.id}`, propuestaPriorizacionOrdenes.trim());
+      localStorage.setItem(
+        `nexus_fase2_orden_ids_${usuario?.id}`,
+        JSON.stringify(ordenPriorizadaList.map((o) => o.id))
+      );
+      localStorage.setItem(`nexus_fase2_priorizacion_${usuario?.id}`, textoFinalPriorizacion);
       localStorage.setItem(`nexus_fase2_justificacion_${usuario?.id}`, justificacionPriorizacionOrdenes.trim());
       setPriorizacionGuardadaMsg(true);
       setTimeout(() => setPriorizacionGuardadaMsg(false), 3500);
@@ -1610,30 +1664,123 @@ export default function DashboardAsistente({ token, usuario }) {
                 </div>
               )}
 
-              {/* Formulario para presentar la propuesta de priorización y su justificación */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-mono text-xs font-bold uppercase tracking-wider text-amber-300 mb-1.5">
-                    Propuesta de priorización de las 7 órdenes a Policía Judicial:
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={propuestaPriorizacionOrdenes}
-                    onChange={(e) => setPropuestaPriorizacionOrdenes(e.target.value)}
-                    placeholder="Indique el orden de prioridad propuesto para la ejecución de las 7 órdenes emitidas con término de 20 días..."
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3.5 text-xs md:text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-amber-400 font-mono resize-none leading-relaxed"
-                  />
+              {/* Formulario interactivo para ordenar de 1 a 7 arrastrando y justificar */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-mono text-xs font-bold uppercase tracking-wider text-amber-300">
+                      Propuesta de priorización (Arrastre de mayor a menor prioridad):
+                    </label>
+                    <span className="font-mono text-[10px] text-slate-400">
+                      1° Mayor → 7° Menor
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3 flex-1">
+                    {ordenPriorizadaList.map((orden, idx) => {
+                      const isDragging = draggedOrdenIdx === idx;
+                      const isDragOver = dragOverOrdenIdx === idx;
+                      return (
+                        <div
+                          key={orden.id}
+                          draggable
+                          onDragStart={() => setDraggedOrdenIdx(idx)}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (dragOverOrdenIdx !== idx) setDragOverOrdenIdx(idx);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedOrdenIdx !== null && draggedOrdenIdx !== idx) {
+                              handleMoveOrdenPrioridad(draggedOrdenIdx, idx);
+                            }
+                            setDraggedOrdenIdx(null);
+                            setDragOverOrdenIdx(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedOrdenIdx(null);
+                            setDragOverOrdenIdx(null);
+                          }}
+                          className={`flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 font-mono text-xs cursor-grab active:cursor-grabbing select-none transition-all ${
+                            isDragging
+                              ? 'opacity-50 border-amber-400 bg-amber-950/40 scale-[0.98]'
+                              : isDragOver
+                              ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                              : 'border-slate-700/80 bg-slate-950/90 hover:border-amber-500/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Indicador de Puesto de Prioridad (1° a 7°) */}
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-black shrink-0 ${
+                                idx === 0
+                                  ? 'bg-red-500/25 border border-red-400/60 text-red-300'
+                                  : idx < 3
+                                  ? 'bg-amber-500/25 border border-amber-400/60 text-amber-300'
+                                  : 'bg-slate-800 border border-slate-600 text-slate-300'
+                              }`}
+                            >
+                              {idx + 1}°
+                            </span>
+
+                            {/* Rectangulito con el número original de la orden (#1 a #7) */}
+                            <span className="rounded bg-amber-500/20 border border-amber-400/50 px-2 py-0.5 text-[11px] font-black text-amber-200 shrink-0 shadow-sm">
+                              #{orden.indice}
+                            </span>
+
+                            <span className="text-slate-100 font-semibold truncate">
+                              {orden.titulo}
+                            </span>
+                          </div>
+
+                          {/* Controles rápidos subir/bajar e ícono de arrastre */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveOrdenPrioridad(idx, idx - 1)}
+                              title="Subir prioridad"
+                              className="rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 disabled:opacity-30"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === ordenPriorizadaList.length - 1}
+                              onClick={() => handleMoveOrdenPrioridad(idx, idx + 1)}
+                              title="Bajar prioridad"
+                              className="rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 disabled:opacity-30"
+                            >
+                              ↓
+                            </button>
+                            <span className="text-slate-500 pl-1 text-sm" title="Arrastrar para reordenar">
+                              ⋮⋮
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Vista previa compacta del orden actual */}
+                    <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-cyan-300">
+                      <span>Orden seleccionado (Mayor a menor):</span>
+                      <span className="font-bold text-amber-300">
+                        {ordenPriorizadaList.map((o) => `#${o.indice}`).join(', ')}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
+
+                <div className="flex flex-col">
                   <label className="block font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1.5">
                     Justificación de la propuesta de priorización:
                   </label>
                   <textarea
-                    rows={4}
+                    rows={10}
                     value={justificacionPriorizacionOrdenes}
                     onChange={(e) => setJustificacionPriorizacionOrdenes(e.target.value)}
-                    placeholder="Explique la justificación técnica, jurídica e investigativa (en el marco de funciones transitorias de policía judicial) de su priorización..."
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3.5 text-xs md:text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400 font-mono resize-none leading-relaxed"
+                    placeholder="Explique la justificación técnica, jurídica e investigativa (en el marco de funciones transitorias de policía judicial) del orden de prioridad establecido..."
+                    className="w-full flex-1 rounded-xl border border-slate-700 bg-slate-900/90 p-3.5 text-xs md:text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400 font-mono resize-none leading-relaxed"
                   />
                 </div>
               </div>
