@@ -583,8 +583,13 @@ function DashboardInvestigator({ token }) {
   useEffect(() => {
     if (!profileSyncDone && usuario) {
       if (usuario.elapsed_seconds != null) {
-        setElapsedSeconds(usuario.elapsed_seconds);
-        setLastEventTriggeredTime(usuario.elapsed_seconds);
+        const maxSeconds = (configData?.tiempo_limite_minutos || 120) * 60;
+        const initialElapsed = usuario.elapsed_seconds >= maxSeconds ? 0 : usuario.elapsed_seconds;
+        setElapsedSeconds(initialElapsed);
+        setLastEventTriggeredTime(initialElapsed);
+        if (usuario.elapsed_seconds >= maxSeconds) {
+          guardarTiempo(0).catch(() => {});
+        }
       }
       if (usuario.shown_event_ids) {
         try {

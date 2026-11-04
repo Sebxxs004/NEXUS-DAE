@@ -45,10 +45,12 @@ const ensureTeamsSchema = async () => {
         codigo VARCHAR(50) UNIQUE,
         duracion_segundos INTEGER DEFAULT 7200,
         started_at TIMESTAMP,
+        started_at_epoch BIGINT,
         accumulated_penalty_seconds INTEGER DEFAULT 0,
         last_penalty JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE equipos ADD COLUMN IF NOT EXISTS started_at_epoch BIGINT;
     `);
 
     // 3. Columna equipo_id en usuarios
@@ -254,9 +256,25 @@ router.get('/:id/timer', authenticate, async (req, res) => {
     }
 
     const now = Date.now();
-    const elapsedRealSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
-    const accumulatedPenaltySeconds = eq.accumulated_penalty_seconds || 0;
-    const timeLeft = Math.max(0, totalDuration - elapsedRealSeconds - accumulatedPenaltySeconds);
+    let elapsedRealSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+    let accumulatedPenaltySeconds = eq.accumulated_penalty_seconds || 0;
+    let timeLeft = Math.max(0, totalDuration - elapsedRealSeconds - accumulatedPenaltySeconds);
+
+    // Si el timer quedó en 0 por una sesión anterior expirada, reiniciarlo automáticamente al tiempo configurado (2 horas = 7200s)
+    if (timeLeft <= 0) {
+      await pool.query(
+        `UPDATE equipos
+         SET started_at_epoch = $1,
+             started_at = NOW(),
+             accumulated_penalty_seconds = 0,
+             last_penalty = NULL
+         WHERE id = $2`,
+        [now, eq.id]
+      );
+      elapsedRealSeconds = 0;
+      accumulatedPenaltySeconds = 0;
+      timeLeft = totalDuration;
+    }
 
     res.json({
       equipoId: eq.id,
@@ -279,10 +297,45 @@ router.get('/:id/timer', authenticate, async (req, res) => {
 router.post('/:id/timer/start', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const eqRes = await pool.query('SELECT started_at_epoch FROM equipos WHERE id = $1', [id]);
-    if (eqRes.rows.length > 0 && !eqRes.rows[0].started_at_epoch) {
-      await pool.query('UPDATE equipos SET started_at_epoch = $1, started_at = NOW() WHERE id = $2', [Date.now(), id]);
-      console.log(`[TIMER START] Timer del equipo ${id} iniciado a las ${new Date().toISOString()}`);
+    const { forceReset } = req.body || {};
+    const eqRes = await pool.query(
+      'SELECT started_at_epoch, duracion_segundos, accumulated_penalty_seconds FROM equipos WHERE id = $1',
+      [id]
+    );
+
+    if (eqRes.rows.length > 0) {
+      const eq = eqRes.rows[0];
+      const totalDuration = eq.duracion_segundos || 7200;
+      const startedAt = eq.started_at_epoch ? Number(eq.started_at_epoch) : null;
+      const elapsedReal = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0;
+      const timeLeft = startedAt
+        ? Math.max(0, totalDuration - elapsedReal - (eq.accumulated_penalty_seconds || 0))
+        : totalDuration;
+
+      // Si nunca ha iniciado, o si la sesión anterior ya expiró (timeLeft <= 0), o si se fuerza reinicio:
+      if (!startedAt || timeLeft <= 0 || forceReset) {
+        let targetDuration = 7200;
+        try {
+          const cfg = await pool.query('SELECT tiempo_limite_minutos FROM configuracion_sistema LIMIT 1');
+          if (cfg.rows.length > 0 && cfg.rows[0].tiempo_limite_minutos > 0) {
+            targetDuration = Number(cfg.rows[0].tiempo_limite_minutos) * 60;
+          }
+        } catch (_e) {
+          targetDuration = 7200;
+        }
+
+        await pool.query(
+          `UPDATE equipos
+           SET started_at_epoch = $1,
+               started_at = NOW(),
+               duracion_segundos = $2,
+               accumulated_penalty_seconds = 0,
+               last_penalty = NULL
+           WHERE id = $3`,
+          [Date.now(), targetDuration, id]
+        );
+        console.log(`[TIMER START] Timer del equipo ${id} (re)iniciado con ${targetDuration}s a las ${new Date().toISOString()}`);
+      }
     }
     res.json({ success: true, started: true });
   } catch (err) {

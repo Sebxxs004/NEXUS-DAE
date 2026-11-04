@@ -93,7 +93,16 @@ async function seedProduction() {
         );
         console.log(`[SEED] Creado equipo: ${eq.nombre} (${eq.codigo})`);
       } else {
-        await pool.query('UPDATE equipos SET duracion_segundos = 7200 WHERE id = $1', [r.rows[0].id]);
+        await pool.query(
+          `UPDATE equipos
+           SET duracion_segundos = 7200,
+               started_at = NULL,
+               started_at_epoch = NULL,
+               accumulated_penalty_seconds = 0,
+               last_penalty = NULL
+           WHERE id = $1`,
+          [r.rows[0].id]
+        );
       }
       equiposMap[eq.codigo] = r.rows[0].id;
     }
@@ -133,12 +142,22 @@ async function seedProduction() {
         console.log(`[SEED] Creado usuario: ${u.nombre} (${u.email}) vinculado al equipo`);
       } else {
         await pool.query(
-          `UPDATE usuarios SET equipo_id = $1, rol_id = $2 WHERE id = $3`,
+          `UPDATE usuarios SET equipo_id = $1, rol_id = $2, elapsed_seconds = 0 WHERE id = $3`,
           [u.eq, u.rol_id, check.rows[0].id]
         );
         console.log(`[SEED] Actualizado usuario existente: ${u.email} -> equipo`);
       }
     }
+
+    // Asegurar que todos los equipos en la BD queden con el contador limpio en 7200s (2 horas)
+    await pool.query(`
+      UPDATE equipos
+      SET duracion_segundos = 7200,
+          started_at = NULL,
+          started_at_epoch = NULL,
+          accumulated_penalty_seconds = 0,
+          last_penalty = NULL;
+    `).catch(() => {});
 
     // 6. Sembrar todos los casos (incluyendo los 3 nuevos)
     const adminRes = await pool.query("SELECT id FROM usuarios WHERE email = 'admin@nexus.dae' LIMIT 1");

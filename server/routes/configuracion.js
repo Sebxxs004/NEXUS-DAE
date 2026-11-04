@@ -71,6 +71,21 @@ router.put('/', authenticate, requireAdmin, async (req, res) => {
       'UPDATE configuracion_sistema SET tiempo_limite_minutos = $1, updated_at = CURRENT_TIMESTAMP RETURNING *',
       [tiempo_limite_minutos]
     );
+
+    // Sincronizar y reiniciar también el contador de todos los equipos y usuarios con el nuevo tiempo configurado por el Admin
+    const nuevaDuracionSegundos = Number(tiempo_limite_minutos) * 60;
+    await pool.query(
+      `UPDATE equipos 
+       SET duracion_segundos = $1, 
+           started_at_epoch = $2, 
+           started_at = NOW(), 
+           accumulated_penalty_seconds = 0, 
+           last_penalty = NULL`,
+      [nuevaDuracionSegundos, Date.now()]
+    ).catch((e) => console.warn('Aviso sincronizando equipos en PUT /configuracion:', e.message));
+
+    await pool.query('UPDATE usuarios SET elapsed_seconds = 0').catch(() => {});
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating config:', error);
@@ -95,6 +110,13 @@ router.post('/add-minutes', authenticate, requireAdmin, async (req, res) => {
        RETURNING *`,
       [minutos]
     );
+
+    const segundosExtra = Number(minutos) * 60;
+    await pool.query(
+      'UPDATE equipos SET duracion_segundos = COALESCE(duracion_segundos, 7200) + $1',
+      [segundosExtra]
+    ).catch((e) => console.warn('Aviso agregando minutos a equipos:', e.message));
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error adding minutes:', error);
