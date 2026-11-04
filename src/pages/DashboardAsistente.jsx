@@ -478,6 +478,83 @@ export default function DashboardAsistente({ token, usuario }) {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
+  // Estados de Fase 3: Identificación de procesos por vías alternas a la justicia ordinaria / justicia restaurativa
+  const OPCIONES_VIA_ALTERNA_FASE3 = useMemo(
+    () => [
+      '1. El Principio de Oportunidad',
+      '2. Los Preacuerdos y Negociaciones',
+      '3. El Allanamiento a Cargos',
+      '4. La Conciliación Preprocesal y en el Incidente de Reparación Integral',
+      '5. La Preclusión'
+    ],
+    []
+  );
+
+  const [casosViaAlterna, setCasosViaAlterna] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`nexus_fase3_vias_alternas_${usuario?.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showViaAlternaModal, setShowViaAlternaModal] = useState(false);
+  const [viaAlternaOpcion, setViaAlternaOpcion] = useState('');
+  const [viaAlternaJustificacion, setViaAlternaJustificacion] = useState('');
+
+  const handleAbrirViaAlternaModal = (caseObj) => {
+    if (!caseObj) return;
+    const existing = casosViaAlterna.find((item) => item.caseId === caseObj.id);
+    setViaAlternaOpcion(existing ? existing.viaAlterna : OPCIONES_VIA_ALTERNA_FASE3[0]);
+    setViaAlternaJustificacion(existing ? existing.justificacion : '');
+    setShowViaAlternaModal(true);
+  };
+
+  const handleGuardarViaAlternaCaso = () => {
+    if (!detailCase) return;
+    if (!viaAlternaOpcion) {
+      alert('Por favor seleccione una de las 5 vías alternas.');
+      return;
+    }
+    if (!viaAlternaJustificacion.trim()) {
+      alert('Por favor ingrese la justificación de por qué este proceso puede resolverse por esta vía alterna.');
+      return;
+    }
+
+    const radicado = detailCase.nombre ? detailCase.nombre.replace('Caso ', '') : String(detailCase.id);
+    const nuevoRegistro = {
+      caseId: detailCase.id,
+      radicado,
+      delito: detailCase.tipo_delito || 'DELITO NO ESPECIFICADO',
+      viaAlterna: viaAlternaOpcion,
+      justificacion: viaAlternaJustificacion.trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const updated = [
+      ...casosViaAlterna.filter((item) => item.caseId !== detailCase.id),
+      nuevoRegistro
+    ];
+    setCasosViaAlterna(updated);
+    try {
+      localStorage.setItem(`nexus_fase3_vias_alternas_${usuario?.id}`, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error guardando Fase 3:', e);
+    }
+    setShowViaAlternaModal(false);
+  };
+
+  const handleEliminarViaAlternaCaso = (caseId) => {
+    const updated = casosViaAlterna.filter((item) => item.caseId !== caseId);
+    setCasosViaAlterna(updated);
+    try {
+      localStorage.setItem(`nexus_fase3_vias_alternas_${usuario?.id}`, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error eliminando caso de Fase 3:', e);
+    }
+    setShowViaAlternaModal(false);
+  };
+
   // Notificación flotante de alerta delegada
   const [notificacionDelegada, setNotificacionDelegada] = useState(null);
   const seenDelegatedIdsRef = useRef(new Set());
@@ -1041,11 +1118,13 @@ export default function DashboardAsistente({ token, usuario }) {
 
   const handleOpenDetailModal = (caseItem) => {
     setDetailCase(caseItem);
+    setShowViaAlternaModal(false);
     handleResetZoom();
   };
 
   const handleCloseDetailModal = () => {
     setDetailCase(null);
+    setShowViaAlternaModal(false);
     handleResetZoom();
   };
 
@@ -1204,19 +1283,38 @@ export default function DashboardAsistente({ token, usuario }) {
     }
     y += 4;
 
+    // SECCIÓN 3: FASE 3 - PROCESOS IDENTIFICADOS PARA VÍAS ALTERNAS A LA JUSTICIA ORDINARIA
+    writeLine('3. FASE 3: PROCESOS IDENTIFICADOS PARA VÍAS ALTERNAS / JUSTICIA RESTAURATIVA', 12, [15, 23, 42], 'bold');
+    y += 1;
+    if (casosViaAlterna.length === 0) {
+      writeLine('No se identificaron casos para vías alternas a la justicia ordinaria durante la sesión.', 10, [100, 116, 139]);
+    } else {
+      casosViaAlterna.forEach((item, idx) => {
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+        writeLine(`${idx + 1}. Radicado: ${item.radicado} — Delito: ${item.delito}`, 11, [16, 185, 129], 'bold');
+        writeLine(`   Vía alterna seleccionada: ${item.viaAlterna}`, 10, [30, 58, 138], 'bold');
+        writeLine(`   Justificación técnica: ${item.justificacion}`, 10, [51, 65, 85]);
+        y += 2;
+      });
+    }
+    y += 4;
+
     const totalActividades = actividades.length;
     const atendidas = actividades.filter((a) => a.estado === 'REALIZADA' || a.estado === 'RESUELTA').length;
     const ignoradas = actividades.filter((a) => a.estado === 'IGNORADA').length;
     const pendientes = actividades.filter((a) => a.estado === 'PENDIENTE').length;
 
-    writeLine('3. BALANCE DE GESTIÓN Y ALERTAS DEL DESPACHO', 12, [15, 23, 42], 'bold');
+    writeLine('4. BALANCE DE GESTIÓN Y ALERTAS DEL DESPACHO', 12, [15, 23, 42], 'bold');
     writeLine(`Total de actividades recibidas: ${totalActividades}`);
     writeLine(`Actividades atendidas / tramitadas: ${atendidas}`);
     writeLine(`Actividades ignoradas / descartadas: ${ignoradas}`);
     writeLine(`Actividades pendientes por resolver: ${pendientes}`);
     y += 5;
 
-    writeLine('4. REGISTRO DETALLADO DE ACTUACIONES Y JUSTIFICACIONES', 12, [15, 23, 42], 'bold');
+    writeLine('5. REGISTRO DETALLADO DE ACTUACIONES Y JUSTIFICACIONES', 12, [15, 23, 42], 'bold');
     y += 2;
 
     actividades.forEach((act, idx) => {
@@ -1538,12 +1636,19 @@ export default function DashboardAsistente({ token, usuario }) {
                           />
                         </div>
 
-                        {/* Insignia de Propuesta si pertenece a una */}
-                        {cardGroup && (
-                          <span className="absolute top-3 right-3 z-10 rounded-md bg-cyan-950/95 border border-cyan-400 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan-300 backdrop-blur-sm shadow-md">
-                            {cardGroup.name}
-                          </span>
-                        )}
+                        {/* Insignia de Propuesta (Fase 1) o Vía Alterna (Fase 3) */}
+                        <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1">
+                          {cardGroup && (
+                            <span className="rounded-md bg-cyan-950/95 border border-cyan-400 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan-300 backdrop-blur-sm shadow-md">
+                              {cardGroup.name}
+                            </span>
+                          )}
+                          {casosViaAlterna.some((v) => v.caseId === caseItem.id) && (
+                            <span className="rounded-md bg-emerald-950/95 border border-emerald-400 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300 backdrop-blur-sm shadow-md">
+                              ⚖️ Vía Alterna (Fase 3)
+                            </span>
+                          )}
+                        </div>
 
                         <div
                           onClick={() => handleOpenDetailModal(caseItem)}
@@ -1954,7 +2059,66 @@ export default function DashboardAsistente({ token, usuario }) {
               )}
             </div>
 
-            {/* PANEL 2: ACTIVIDADES Y ÓRDENES A SU CARGO */}
+            {/* PANEL 2: FASE 3 - PROCESOS IDENTIFICADOS POR VÍAS ALTERNAS / JUSTICIA RESTAURATIVA */}
+            <div className="bg-slate-950/85 p-5 rounded-2xl border border-emerald-500/30 backdrop-blur-md shadow-2xl flex flex-col space-y-3 max-h-[38vh] overflow-y-auto">
+              <div className="border-b border-slate-800 pb-2.5 flex items-center justify-between">
+                <div>
+                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-2">
+                    <FiTarget size={14} className="text-emerald-400" />
+                    Vías Alternas (Fase 3)
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    Mínimo 3 casos (Justicia Restaurativa / Alternas)
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold border ${
+                    casosViaAlterna.length >= 3
+                      ? 'bg-emerald-950 border-emerald-400/60 text-emerald-300'
+                      : 'bg-amber-950 border-amber-500/50 text-amber-300'
+                  }`}
+                >
+                  {casosViaAlterna.length} / 3 mín.
+                </span>
+              </div>
+
+              {casosViaAlterna.length === 0 ? (
+                <div className="py-4 text-center text-xs text-slate-500 font-mono leading-relaxed">
+                  Aún no has marcado procesos. Abre cualquier expediente (&quot;Ver detalles&quot;) y usa el botón debajo del zoom para marcarlo por vía alterna.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {casosViaAlterna.map((item) => (
+                    <div
+                      key={item.caseId}
+                      className="rounded-xl border border-emerald-500/30 bg-slate-900/60 p-2.5 font-mono text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-emerald-300 truncate">
+                          Rad: {item.radicado}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarViaAlternaCaso(item.caseId)}
+                          title="Quitar de vías alternas"
+                          className="p-0.5 text-slate-400 hover:text-red-400 transition"
+                        >
+                          <FiX size={13} />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-cyan-300 font-semibold leading-snug">
+                        {item.viaAlterna}
+                      </p>
+                      <p className="text-[10px] text-slate-300 line-clamp-2 leading-relaxed">
+                        {item.justificacion}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* PANEL 3: ACTIVIDADES Y ÓRDENES A SU CARGO */}
             <div className="bg-slate-950/85 p-5 rounded-2xl border border-cyan-500/30 backdrop-blur-md shadow-2xl flex flex-col space-y-4 max-h-[52vh] overflow-hidden">
               <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                 <div>
@@ -2169,35 +2333,161 @@ export default function DashboardAsistente({ token, usuario }) {
 
             {/* Modal Body: Controles flotantes + Área de zoom & pan */}
             <div className="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
-              {/* Controles Flotantes de Zoom */}
-              <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 rounded-xl bg-slate-900/90 p-1.5 border border-slate-700/80 backdrop-blur-md shadow-2xl">
-                <button
-                  type="button"
-                  onClick={handleZoomIn}
-                  title="Acercar (+)"
-                  className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition"
-                >
-                  <FiPlus size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleZoomOut}
-                  title="Alejar (-)"
-                  className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition"
-                >
-                  <FiMinus size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetZoom}
-                  title="Restablecer tamaño (1:1)"
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-xs font-bold transition"
-                >
-                  1:1
-                </button>
-                <span className="px-2 font-mono text-xs font-bold text-slate-300">
-                  {Math.round(zoomScale * 100)}%
-                </span>
+              {/* Controles Flotantes de Zoom + Botón Fase 3 (Vía Alterna) debajo del Zoom */}
+              <div className="absolute top-4 left-4 z-20 flex flex-col items-start gap-2.5">
+                <div className="flex items-center gap-1.5 rounded-xl bg-slate-900/90 p-1.5 border border-slate-700/80 backdrop-blur-md shadow-2xl">
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    title="Acercar (+)"
+                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition"
+                  >
+                    <FiPlus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    title="Alejar (-)"
+                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition"
+                  >
+                    <FiMinus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetZoom}
+                    title="Restablecer tamaño (1:1)"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-xs font-bold transition"
+                  >
+                    1:1
+                  </button>
+                  <span className="px-2 font-mono text-xs font-bold text-slate-300">
+                    {Math.round(zoomScale * 100)}%
+                  </span>
+                </div>
+
+                {/* Botón debajo del zoom para marcar como resuelto por vía alterna (Fase 3) */}
+                {(() => {
+                  const registroActual = casosViaAlterna.find((item) => item.caseId === detailCase.id);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleAbrirViaAlternaModal(detailCase)}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-mono text-xs font-bold shadow-2xl backdrop-blur-md transition-all active:scale-95 ${
+                        registroActual
+                          ? 'border-2 border-emerald-400 bg-emerald-950/90 text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:bg-emerald-900/90'
+                          : 'border border-emerald-500/60 bg-slate-900/95 text-emerald-300 hover:bg-emerald-950/80 hover:border-emerald-400'
+                      }`}
+                    >
+                      <FiTarget size={15} className="text-emerald-400 shrink-0" />
+                      <span>
+                        {registroActual
+                          ? `✅ Vía Alterna: ${registroActual.viaAlterna} (Editar)`
+                          : '⚖️ Marcar por Vía Alterna (Fase 3)'}
+                      </span>
+                    </button>
+                  );
+                })()}
+
+                {/* Ventana emergente para elegir una de las 5 opciones de Vía Alterna y justificar */}
+                {showViaAlternaModal && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-[92vw] max-w-lg rounded-2xl border-2 border-emerald-500/60 bg-slate-900/98 p-5 shadow-[0_0_50px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 animate-welcome-zoom"
+                  >
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
+                      <div>
+                        <span className="rounded bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300 uppercase">
+                          Fase 3 • Vías Alternas a la Justicia Ordinaria
+                        </span>
+                        <h4 className="font-mono text-sm font-bold text-slate-100 mt-1.5">
+                          Expediente {detailCase.nombre.replace('Caso ', '')}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowViaAlternaModal(false)}
+                        className="text-slate-400 hover:text-white p-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block font-mono text-xs font-bold uppercase tracking-wider text-emerald-300">
+                        Seleccione la vía alterna aplicable:
+                      </label>
+                      <div className="space-y-2">
+                        {OPCIONES_VIA_ALTERNA_FASE3.map((opcion) => {
+                          const isSelected = viaAlternaOpcion === opcion;
+                          return (
+                            <button
+                              key={opcion}
+                              type="button"
+                              onClick={() => setViaAlternaOpcion(opcion)}
+                              className={`w-full text-left rounded-xl border px-3.5 py-2.5 font-mono text-xs transition-all flex items-center gap-2.5 ${
+                                isSelected
+                                  ? 'border-emerald-400 bg-emerald-950/80 text-emerald-100 font-bold shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                                  : 'border-slate-800 bg-slate-950/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                              }`}
+                            >
+                              <span
+                                className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                  isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-slate-600'
+                                }`}
+                              >
+                                {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />}
+                              </span>
+                              <span>{opcion}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block font-mono text-xs font-bold uppercase tracking-wider text-amber-300">
+                        Justificación de la vía alterna seleccionada:
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={viaAlternaJustificacion}
+                        onChange={(e) => setViaAlternaJustificacion(e.target.value)}
+                        placeholder="Justifique por qué este caso puede ser resuelto mediante la vía alterna seleccionada (caracterización de la víctima, indiciado y hechos)..."
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-400 font-mono resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                      {casosViaAlterna.some((item) => item.caseId === detailCase.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarViaAlternaCaso(detailCase.id)}
+                          className="rounded-lg border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 font-mono text-xs font-bold text-red-300 transition"
+                        >
+                          Quitar marca
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowViaAlternaModal(false)}
+                          className="rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-700 px-4 py-2 font-mono text-xs font-bold text-slate-300 transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleGuardarViaAlternaCaso}
+                          className="rounded-lg border border-emerald-400/50 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 font-mono text-xs font-bold text-white shadow-lg transition"
+                        >
+                          Guardar Vía Alterna
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Visor Interactivo Pan & Drag */}
