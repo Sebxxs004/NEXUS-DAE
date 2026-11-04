@@ -364,7 +364,7 @@ export default function DashboardAsistente({ token, usuario }) {
 
   const formatOrdenPrioridadTexto = (orderedList) =>
     orderedList
-      .map((item, pos) => `${pos + 1}° Prioridad: Orden #${item.indice} (${item.titulo})`)
+      .map((item, pos) => `${pos + 1}° Prioridad: ${item.titulo}`)
       .join(', ');
 
   const [mostrarListaOrdenesPj, setMostrarListaOrdenesPj] = useState(true);
@@ -1635,9 +1635,6 @@ export default function DashboardAsistente({ token, usuario }) {
                           className="flex flex-col justify-between rounded-xl border border-slate-700/80 bg-slate-950/90 p-3 hover:border-amber-500/50 transition gap-2.5"
                         >
                           <div className="flex items-start gap-2">
-                            <span className="rounded bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300 shrink-0">
-                              #{idx + 1}
-                            </span>
                             <p className="font-mono text-xs font-semibold text-slate-100 leading-snug">
                               {orden.titulo}
                             </p>
@@ -1712,9 +1709,9 @@ export default function DashboardAsistente({ token, usuario }) {
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            {/* Indicador de Puesto de Prioridad (1° a 7°) */}
+                            {/* Indicador único de Puesto de Prioridad (1° a 7°) */}
                             <span
-                              className={`rounded px-2 py-0.5 text-[10px] font-black shrink-0 ${
+                              className={`rounded px-2 py-0.5 text-[11px] font-black shrink-0 ${
                                 idx === 0
                                   ? 'bg-red-500/25 border border-red-400/60 text-red-300'
                                   : idx < 3
@@ -1723,11 +1720,6 @@ export default function DashboardAsistente({ token, usuario }) {
                               }`}
                             >
                               {idx + 1}°
-                            </span>
-
-                            {/* Rectangulito con el número original de la orden (#1 a #7) */}
-                            <span className="rounded bg-amber-500/20 border border-amber-400/50 px-2 py-0.5 text-[11px] font-black text-amber-200 shrink-0 shadow-sm">
-                              #{orden.indice}
                             </span>
 
                             <span className="text-slate-100 font-semibold truncate">
@@ -1764,10 +1756,10 @@ export default function DashboardAsistente({ token, usuario }) {
                     })}
 
                     {/* Vista previa compacta del orden actual */}
-                    <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-cyan-300">
+                    <div className="pt-1.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-cyan-300">
                       <span>Orden seleccionado (Mayor a menor):</span>
                       <span className="font-bold text-amber-300">
-                        {ordenPriorizadaList.map((o) => `#${o.indice}`).join(', ')}
+                        {ordenPriorizadaList.map((o, i) => `${i + 1}° No. ${o.numero}`).join(' • ')}
                       </span>
                     </div>
                   </div>
