@@ -16,6 +16,14 @@ const ensureMetadataColumns = async () => {
       ADD COLUMN IF NOT EXISTS es_autor_intelectual BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS es_zona_operacion BOOLEAN DEFAULT FALSE
     `);
+    await pool.query(`
+      DELETE FROM carpetas
+      WHERE nombre IN (
+        'Caso 5400160000020260002',
+        'Caso 54001600100202600001',
+        'Caso 540016000000202600002'
+      )
+    `);
   } catch (error) {
     console.error('No fue posible asegurar columnas de metadatos en carpetas:', error);
   }

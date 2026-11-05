@@ -209,8 +209,15 @@ async function seedProduction() {
       }
     }
 
-    // Eliminar imagen de alerta que se había colado como noticia criminal (5400160000020260002)
-    await pool.query("DELETE FROM carpetas WHERE nombre = 'Caso 5400160000020260002'");
+    // Eliminar radicados descartados de la base de datos
+    await pool.query(`
+      DELETE FROM carpetas
+      WHERE nombre IN (
+        'Caso 5400160000020260002',
+        'Caso 54001600100202600001',
+        'Caso 540016000000202600002'
+      )
+    `);
 
     console.log(`[SEED] Expedientes: ${insertedCases} insertados, ${updatedCases} actualizados.`);
     const totalCasesRes = await pool.query('SELECT count(*) FROM carpetas');
