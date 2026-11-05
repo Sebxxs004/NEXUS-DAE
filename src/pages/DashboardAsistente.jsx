@@ -350,8 +350,8 @@ export default function DashboardAsistente({ token, usuario }) {
       id: 'OPJ-12881118',
       indice: 6,
       numero: '12881118',
-      titulo: 'Orden Policía Judicial No. 12881118 - Hurto 201',
-      archivo: 'OrdenPoliciaJudicial_12881118 HURTO 201.pdf'
+      titulo: 'Orden Policía Judicial No. 12881118 - Hurto',
+      archivo: 'OrdenPoliciaJudicial_12881118 HURTO .pdf'
     },
     {
       id: 'OPJ-12881119',
