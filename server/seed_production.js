@@ -75,12 +75,28 @@ async function seedProduction() {
       UPDATE configuracion_sistema SET tiempo_limite_minutos = 120;
     `);
 
-    // 4. Crear los 3 Equipos
-    const equiposData = [
-      { nombre: 'Equipo Alfa', codigo: 'EQ-ALFA' },
-      { nombre: 'Equipo Bravo', codigo: 'EQ-BRAVO' },
-      { nombre: 'Equipo Charlie', codigo: 'EQ-CHARLIE' }
-    ];
+    // 4. Crear los 25 Grupos de usuarios + 1 Grupo Prueba
+    const equiposData = [];
+    for (let i = 1; i <= 25; i++) {
+      const padded = String(i).padStart(2, '0');
+      equiposData.push({
+        nombre: `Grupo ${i}`,
+        codigo: `EQ-G${padded}`,
+        numero: i
+      });
+    }
+    equiposData.push({
+      nombre: 'Grupo Prueba',
+      codigo: 'EQ-PRUEBA',
+      esPrueba: true
+    });
+
+    // Limpiar equipos antiguos de ejemplo (Alfa, Bravo, Charlie) si existen
+    await pool.query(`
+      UPDATE usuarios SET equipo_id = NULL
+      WHERE equipo_id IN (SELECT id FROM equipos WHERE codigo IN ('EQ-ALFA', 'EQ-BRAVO', 'EQ-CHARLIE'));
+      DELETE FROM equipos WHERE codigo IN ('EQ-ALFA', 'EQ-BRAVO', 'EQ-CHARLIE');
+    `).catch(() => {});
 
     const equiposMap = {};
 
@@ -95,41 +111,75 @@ async function seedProduction() {
       } else {
         await pool.query(
           `UPDATE equipos
-           SET duracion_segundos = 7200,
+           SET nombre = $2,
+               duracion_segundos = 7200,
                started_at = NULL,
                started_at_epoch = NULL,
                accumulated_penalty_seconds = 0,
                last_penalty = NULL
            WHERE id = $1`,
-          [r.rows[0].id]
+          [r.rows[0].id, eq.nombre]
         );
       }
       equiposMap[eq.codigo] = r.rows[0].id;
     }
 
-    // 5. Crear los 3 Fiscales y sus 3 Asistentes
+    // 5. Crear los 25 Fiscales y 25 Asistentes + Fiscal de Prueba y Asistente de Prueba (+ Admin)
+    const rolAdmin = (await pool.query("SELECT id FROM roles WHERE nombre = 'admin'")).rows[0].id;
     const rolInvestigador = (await pool.query("SELECT id FROM roles WHERE nombre = 'investigador'")).rows[0].id;
     const rolAsistente = (await pool.query("SELECT id FROM roles WHERE nombre = 'asistente'")).rows[0].id;
 
+    const hashAdmin = await bcrypt.hash('admin123', 10);
     const hashFiscal = await bcrypt.hash('fiscal123', 10);
     const hashAsistente = await bcrypt.hash('asistente123', 10);
 
-    const usuariosData = [
-      // Equipo Alfa
-      { nombre: 'Fiscal Delegado Alfa', email: 'fiscal1@nexus.dae', hash: hashFiscal, rol_id: rolInvestigador, eq: equiposMap['EQ-ALFA'] },
-      { nombre: 'Asistente Fiscal Alfa', email: 'asistente1@nexus.dae', hash: hashAsistente, rol_id: rolAsistente, eq: equiposMap['EQ-ALFA'] },
-      // Alias de prueba anteriores asignados a Alfa
-      { nombre: 'Investigador NEXUS', email: 'investigador@nexus.dae', hash: hashFiscal, rol_id: rolInvestigador, eq: equiposMap['EQ-ALFA'] },
-      { nombre: 'Asistente Fiscal Demo', email: 'asistente@nexus.dae', hash: hashAsistente, rol_id: rolAsistente, eq: equiposMap['EQ-ALFA'] },
+    // Asegurar cuenta de Admin
+    const adminCheck = await pool.query("SELECT id FROM usuarios WHERE email = 'admin@nexus.dae'");
+    if (adminCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO usuarios (nombre, email, password_hash, rol_id, activo, primera_vez)
+         VALUES ('Administrador NEXUS', 'admin@nexus.dae', $1, $2, TRUE, FALSE)`,
+        [hashAdmin, rolAdmin]
+      );
+    }
 
-      // Equipo Bravo
-      { nombre: 'Fiscal Delegado Bravo', email: 'fiscal2@nexus.dae', hash: hashFiscal, rol_id: rolInvestigador, eq: equiposMap['EQ-BRAVO'] },
-      { nombre: 'Asistente Fiscal Bravo', email: 'asistente2@nexus.dae', hash: hashAsistente, rol_id: rolAsistente, eq: equiposMap['EQ-BRAVO'] },
+    const usuariosData = [];
 
-      // Equipo Charlie
-      { nombre: 'Fiscal Delegado Charlie', email: 'fiscal3@nexus.dae', hash: hashFiscal, rol_id: rolInvestigador, eq: equiposMap['EQ-CHARLIE'] },
-      { nombre: 'Asistente Fiscal Charlie', email: 'asistente3@nexus.dae', hash: hashAsistente, rol_id: rolAsistente, eq: equiposMap['EQ-CHARLIE'] }
-    ];
+    // 25 Grupos (Grupo 1 a Grupo 25)
+    for (let i = 1; i <= 25; i++) {
+      const padded = String(i).padStart(2, '0');
+      const eqId = equiposMap[`EQ-G${padded}`];
+      usuariosData.push({
+        nombre: `Fiscal Grupo ${i}`,
+        email: `fiscal${i}@nexus.dae`,
+        hash: hashFiscal,
+        rol_id: rolInvestigador,
+        eq: eqId
+      });
+      usuariosData.push({
+        nombre: `Asistente Grupo ${i}`,
+        email: `asistente${i}@nexus.dae`,
+        hash: hashAsistente,
+        rol_id: rolAsistente,
+        eq: eqId
+      });
+    }
+
+    // Grupo Prueba (Fiscal de Prueba + Asistente de Prueba)
+    usuariosData.push({
+      nombre: 'Fiscal de Prueba',
+      email: 'fiscal.prueba@nexus.dae',
+      hash: hashFiscal,
+      rol_id: rolInvestigador,
+      eq: equiposMap['EQ-PRUEBA']
+    });
+    usuariosData.push({
+      nombre: 'Asistente de Prueba',
+      email: 'asistente.prueba@nexus.dae',
+      hash: hashAsistente,
+      rol_id: rolAsistente,
+      eq: equiposMap['EQ-PRUEBA']
+    });
 
     for (const u of usuariosData) {
       const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [u.email]);
@@ -142,10 +192,10 @@ async function seedProduction() {
         console.log(`[SEED] Creado usuario: ${u.nombre} (${u.email}) vinculado al equipo`);
       } else {
         await pool.query(
-          `UPDATE usuarios SET equipo_id = $1, rol_id = $2, elapsed_seconds = 0 WHERE id = $3`,
-          [u.eq, u.rol_id, check.rows[0].id]
+          `UPDATE usuarios SET nombre = $1, password_hash = $2, equipo_id = $3, rol_id = $4, elapsed_seconds = 0, activo = TRUE WHERE id = $5`,
+          [u.nombre, u.hash, u.eq, u.rol_id, check.rows[0].id]
         );
-        console.log(`[SEED] Actualizado usuario existente: ${u.email} -> equipo`);
+        console.log(`[SEED] Actualizado usuario existente: ${u.email} -> ${u.nombre}`);
       }
     }
 
