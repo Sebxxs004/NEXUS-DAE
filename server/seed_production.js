@@ -75,9 +75,9 @@ async function seedProduction() {
       UPDATE configuracion_sistema SET tiempo_limite_minutos = 120;
     `);
 
-    // 4. Crear los 25 Grupos de usuarios + 1 Grupo Prueba
+    // 4. Crear los 35 Grupos de usuarios + 1 Grupo Prueba
     const equiposData = [];
-    for (let i = 1; i <= 25; i++) {
+    for (let i = 1; i <= 35; i++) {
       const padded = String(i).padStart(2, '0');
       equiposData.push({
         nombre: `Grupo ${i}`,
@@ -145,8 +145,8 @@ async function seedProduction() {
 
     const usuariosData = [];
 
-    // 25 Grupos (Grupo 1 a Grupo 25)
-    for (let i = 1; i <= 25; i++) {
+    // 35 Grupos (Grupo 1 a Grupo 35)
+    for (let i = 1; i <= 35; i++) {
       const padded = String(i).padStart(2, '0');
       const eqId = equiposMap[`EQ-G${padded}`];
       usuariosData.push({
